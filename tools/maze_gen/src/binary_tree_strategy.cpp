@@ -4,6 +4,7 @@ namespace maze_gen {
 
 void BinaryTreeStrategy::generateMaze(MazeGrid& grid)
 {
+	_rng = make_rng(); // reseed here: the seed is set after construction
 	for(int i = 0; i < grid.width(); ++i) {
 		for(int j = 0; j < grid.height(); ++j) {
 			Dir dir = choose_random_option();

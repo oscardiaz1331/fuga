@@ -5,6 +5,7 @@
 namespace maze_gen {
 
 void RecursiveDivisionStrategy::generateMaze(MazeGrid& grid) {
+    _rng = make_rng(); // reseed here: the seed is set after construction
     bool initialHorizontal = std::uniform_int_distribution<>(0, 1)(_rng);
     divide(grid, 0, 0, grid.width(), grid.height(), initialHorizontal);
 }

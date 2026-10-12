@@ -26,10 +26,7 @@ void MazeGenerator::generate(MazeGrid& grid,const MazeStrategyOptions& options)
 {
 	reset(grid);
 	_mazeStrategy->setDifficulty(options.difficulty);
-	if (options.seed.has_value()) {
-		uint64_t seed = options.seed.value();
-		_mazeStrategy->setSeed(seed);
-	}
+	_mazeStrategy->setSeed(options.seed);
 	if (_strategy != MazeAlgorithm::CellularAutomaton) {
 		_roomGenerator.generateRooms(grid, options);
 	}

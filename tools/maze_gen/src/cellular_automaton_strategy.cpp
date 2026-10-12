@@ -10,6 +10,7 @@ namespace maze_gen {
 // In this case, the isAlive flag is used to track if a cell is dead or alive
 void CellularAutomatonStrategy::generateMaze(MazeGrid& grid)
 {
+	_rng = make_rng(); // reseed here: the seed is set after construction
 	initializeGrid(grid);
 	applyRules(grid);
 	ensureConnectivity(grid);

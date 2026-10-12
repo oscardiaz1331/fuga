@@ -10,7 +10,7 @@ class IMazeGenerationStrategy
 public:
 	virtual void generateMaze(MazeGrid& grid) = 0;
 	virtual ~IMazeGenerationStrategy() = default;
-	virtual void setSeed(uint64_t seed) { _seed = seed; }
+	virtual void setSeed(std::optional<uint64_t> seed) { _seed = seed; } // nullopt = seed from random_device
 	virtual void setDifficulty(int difficulty) {} // Optional, not all strategies use it
 
 protected:
