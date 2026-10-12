@@ -1,0 +1,4 @@
+# Salida de colcon
+build/
+install/
+log/
