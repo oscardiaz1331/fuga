@@ -2,3 +2,15 @@
 build/
 install/
 log/
+
+# Python
+__pycache__/
+*.pyc
+
+# Configuracion local del editor y de clangd
+.vscode/
+.clangd
+compile_commands.json
+
+# Salida de la demo (maze_gen_demo)
+data/
