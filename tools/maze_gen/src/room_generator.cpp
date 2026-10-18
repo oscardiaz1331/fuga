@@ -1,183 +1,123 @@
-#include "maze_gen/room_generator.hpp"
+#include "room_generator.hpp"
 #include <algorithm>
-#include "maze_gen/random_generator.hpp"
+#include <array>
 
-namespace maze_gen {
-
-RoomGenerator::RoomConfig RoomGenerator::getRoomConfig(int diff, int w, int h) const
+namespace maze_gen
 {
-    // Clamp difficulty
-    diff = std::max(0, std::min(10, diff));
-    // Base calculations
-    int totalCells = w * h;
-    int minDimension = std::min(w, h);
-    int maxDimension = std::max(w, h);
 
-    RoomConfig config;
+RoomGenerator::RoomConfig RoomGenerator::room_config(int level, int width, int height) const
+{
+  const int total_cells = width * height;
+  const int min_dimension = std::min(width, height);
 
-    // Room sizes scale with difficulty and maze size
-    config.minRoomSize = std::max(2, minDimension / 15 + diff / 3);
-    config.maxRoomSize = std::max(config.minRoomSize + 1,
-        minDimension / 8 + diff / 2);
+  RoomConfig config;
 
-    // Number of rooms
-    double baseDensity = 0.02 + (diff * 0.008);  // 2% to 10%
-    int baseRooms = static_cast<int>(totalCells * baseDensity / 20);
+  // Room sizes scale with the level and with the size of the maze
+  config.min_room_size = std::max(2, min_dimension / 15 + level / 3);
+  config.max_room_size = std::max(config.min_room_size + 1, min_dimension / 8 + level / 2);
 
-    config.minRooms = std::max(1, baseRooms);
-    config.maxRooms = std::max(config.minRooms, baseRooms + diff / 2);
+  // Number of rooms
+  const double base_density = 0.02 + (level * 0.008);  // 2% to 10%
+  const int base_rooms = static_cast<int>(total_cells * base_density / 20);
+  config.min_rooms = std::max(1, base_rooms);
+  config.max_rooms = std::max(config.min_rooms, base_rooms + level / 2);
 
-    // Room density (how much of the maze can be rooms)
-    config.roomDensity = std::min(0.25, 0.05 + diff * 0.02);
-
-    return config;
+  config.room_density = std::min(0.25, 0.05 + level * 0.02);
+  return config;
 }
 
-bool RoomGenerator::isValidRoomPlacement(const Room& room, const std::vector<Room>& existingRooms) const
+std::vector<Room> RoomGenerator::place_rooms(
+  const MazeGrid & grid, Random & rng, int level) const
 {
-    // Check boundaries
-	auto [x, y] = room.topLeft();
-    if (x < 1 || y < 1 ||
-        x + room.width() >= _mazeWidth - 1 ||
-        y + room.height() >= _mazeHeight - 1) {
-        return false;
-    }
+  const int width = grid.width();
+  const int height = grid.height();
+  std::vector<Room> rooms;
+  RoomConfig config = room_config(level, width, height);
 
-    // Check overlaps with existing rooms
-    for (const auto& existing : existingRooms) {
-        if (room.overlaps(existing)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-Room RoomGenerator::generateRandomRoom(const RoomConfig& config)
-{
-    std::uniform_int_distribution<int> sizeRand(config.minRoomSize, config.maxRoomSize);
-    std::uniform_int_distribution<int> xRand(1, _mazeWidth - config.maxRoomSize - 1);
-    std::uniform_int_distribution<int> yRand(1, _mazeHeight - config.maxRoomSize - 1);
-
-    int width = sizeRand(_rng);
-    int height = sizeRand(_rng);
-    int x = xRand(_rng);
-    int y = yRand(_rng);
-
-    // Ensure room fits
-    x = std::min(x, _mazeWidth - width - 1);
-    y = std::min(y, _mazeHeight - height - 1);
-
-    return Room(x, y, width, height);
-}
-
-std::vector<Room> RoomGenerator::createRooms(int mazeWidth, int mazeHeight, int difficulty)
-{
-    std::vector<Room> rooms;
-    RoomConfig config = getRoomConfig(difficulty, mazeWidth, mazeHeight);
-    _mazeWidth = mazeWidth;
-    _mazeHeight = mazeHeight;
-    std::uniform_int_distribution<int> roomCountRand(config.minRooms, config.maxRooms);
-    int targetRooms = roomCountRand(_rng);
-
-    // Calculate maximum allowed room area
-    int totalCells = mazeWidth * mazeHeight;
-    int maxRoomArea = static_cast<int>(totalCells * config.roomDensity);
-    int currentRoomArea = 0;
-
-    // Try to place rooms
-    int attempts = 0;
-    const int maxAttempts = targetRooms * 50; // Prevent infinite loops
-
-    while (rooms.size() < static_cast<size_t>(targetRooms) && attempts < maxAttempts) {
-        Room candidateRoom = generateRandomRoom(config);
-        int roomArea = candidateRoom.width() * candidateRoom.height();
-
-        if (currentRoomArea + roomArea <= maxRoomArea &&
-            isValidRoomPlacement(candidateRoom, rooms)) {
-            rooms.push_back(candidateRoom);
-            currentRoomArea += roomArea;
-        }
-
-        attempts++;
-    }
-
+  // A room keeps one free cell to the north and west borders and two to the south and
+  // east ones, so its side can be at most this. Smaller mazes get no rooms
+  const int max_fit = std::min(width, height) - 3;
+  if (max_fit < config.min_room_size) {
     return rooms;
+  }
+  config.max_room_size = std::min(config.max_room_size, max_fit);
+
+  const int target_rooms = rng.uniform_int(config.min_rooms, config.max_rooms);
+  const int max_room_area = static_cast<int>(grid.cell_count() * config.room_density);
+  int room_area = 0;
+
+  // Random positions, with a cap on the attempts so that a crowded maze cannot loop forever
+  const int max_attempts = target_rooms * 50;
+  for (int attempt = 0;
+    attempt < max_attempts && static_cast<int>(rooms.size()) < target_rooms; ++attempt)
+  {
+    const int room_width = rng.uniform_int(config.min_room_size, config.max_room_size);
+    const int room_height = rng.uniform_int(config.min_room_size, config.max_room_size);
+    const int x = rng.uniform_int(1, width - room_width - 2);
+    const int y = rng.uniform_int(1, height - room_height - 2);
+    const Room candidate(x, y, room_width, room_height);
+
+    const bool fits_area = room_area + room_width * room_height <= max_room_area;
+    const bool touches_another = std::any_of(
+      rooms.begin(), rooms.end(),
+      [&candidate](const Room & other) {return candidate.overlaps(other);});
+    if (fits_area && !touches_another) {
+      rooms.push_back(candidate);
+      room_area += room_width * room_height;
+    }
+  }
+  return rooms;
 }
 
-void RoomGenerator::generateRooms(MazeGrid& grid, const MazeStrategyOptions& opts)
+void RoomGenerator::generate_rooms(MazeGrid & grid, Random & rng, int level) const
 {
-    _rng = RandomGenerator::generateRng(opts.seed);
-	auto rooms = createRooms(grid.width(), grid.height(), opts.difficulty);
-    for (const auto& room : rooms) {
-        clearRoomWalls(grid, room);
-    }
-
-    // Connect rooms to maze passages
-    for (const auto& room : rooms) {
-        createRoomConnections(grid, room);
-    }
+  const std::vector<Room> rooms = place_rooms(grid, rng, level);
+  for (const Room & room : rooms) {
+    clear_room_walls(grid, room);
+  }
+  for (const Room & room : rooms) {
+    create_room_doors(grid, rng, room);
+  }
 }
 
-void RoomGenerator::clearRoomWalls(MazeGrid& grid, const Room& room)
+void RoomGenerator::clear_room_walls(MazeGrid & grid, const Room & room) const
 {
-    // Clear all internal walls in the room
-    auto [x, y] = room.topLeft();
-    for (int ry = y; ry < y + room.height(); ++ry) {
-        for (int rx = x; rx < x + room.width(); ++rx) {
-            if (!grid.in_bounds(rx, ry)) continue;
-
-            // Clear internal connections
-            if (rx < x + room.width() - 1) {
-                // Clear east wall if not at room's right edge
-				grid.carve(rx, ry, Dir::E);
-            }
-            if (ry < y + room.height() - 1) {
-                // Clear south wall if not at room's bottom edge
-                grid.carve(rx, ry, Dir::S);
-            }
-            if (rx > x) {
-                // Clear west wall if not at room's left edge
-                grid.carve(rx, ry, Dir::W);
-            }
-            if (ry > y) {
-                // Clear north wall if not at room's top edge
-                grid.carve(rx, ry, Dir::N);
-            }
-        }
+  const auto [left, top] = room.top_left();
+  for (int y = top; y < top + room.height(); ++y) {
+    for (int x = left; x < left + room.width(); ++x) {
+      if (x < left + room.width() - 1) {
+        grid.carve(x, y, Dir::E);
+      }
+      if (y < top + room.height() - 1) {
+        grid.carve(x, y, Dir::S);
+      }
     }
+  }
 }
 
-void RoomGenerator::createRoomConnections(MazeGrid& grid, const Room& room)
+void RoomGenerator::create_room_doors(MazeGrid & grid, Random & rng, const Room & room) const
 {
+  std::vector<std::pair<int, int>> perimeter = room.perimeter_cells();
+  rng.shuffle(perimeter.begin(), perimeter.end());
 
-    std::vector<std::pair<int, int>> perimeter = room.getPerimeterCells();
+  // 1 to 3 doors, depending on the size of the room
+  const int doors = std::min(3, std::max(1, (room.width() + room.height()) / 8));
 
-    // Shuffle perimeter to randomize connection points
-    std::shuffle(perimeter.begin(), perimeter.end(), _rng);
-
-    // Create 1-3 connections based on room size
-    int connections = std::min(3, std::max(1, (room.width() + room.height()) / 8));
-
-    int made_connections = 0;
-    for (const auto& [px, py] : perimeter) {
-        if (made_connections >= connections) break;
-
-        // Try to connect to adjacent maze passages
-        auto directions = grid.directions4();
-        std::shuffle(directions.begin(), directions.end(), _rng);
-
-        for (auto dir : directions) {
-            auto neighbor = grid.try_neighbor(px, py, dir);
-            if (neighbor && !room.contains(neighbor->first, neighbor->second)) {
-                // Connect to this neighbor
-                if (grid.carve(px, py, dir)) {
-                    made_connections++;
-                    break;
-                }
-            }
-        }
+  int doors_made = 0;
+  for (const auto & [x, y] : perimeter) {
+    if (doors_made >= doors) {
+      break;
     }
+    std::array<Dir, 4> directions = kDirections;
+    rng.shuffle(directions.begin(), directions.end());
+    for (Dir dir : directions) {
+      const auto [nx, ny] = MazeGrid::neighbor(x, y, dir);
+      if (!room.contains(nx, ny) && grid.carve(x, y, dir)) {
+        ++doors_made;
+        break;
+      }
+    }
+  }
 }
 
 }  // namespace maze_gen

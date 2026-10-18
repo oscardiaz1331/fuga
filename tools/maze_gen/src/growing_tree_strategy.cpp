@@ -1,36 +1,43 @@
-#include "maze_gen/growing_tree_strategy.hpp"
-#include <algorithm>
-#include <random>
+#include <utility>
+#include <vector>
+#include "strategies.hpp"
 
-namespace maze_gen {
-
-void GrowingTreeStrategy::generateMaze(MazeGrid& grid)
+namespace maze_gen
 {
-	auto rng = make_rng();
-	std::uniform_int_distribution<int> distW(0, grid.width() - 1);
-	std::uniform_int_distribution<int> distH(0, grid.height() - 1);
-	int x1 = distW(rng);
-	int y1 = distH(rng);
-	std::vector<std::pair<int, int>> unvisitedCells{ {x1, y1} };
-	grid.getVisitedCell(x1, y1).isVisited = true;
-	while (!unvisitedCells.empty()) {
-		std::shuffle(unvisitedCells.begin(), unvisitedCells.end(), rng);
-		auto [x, y] = unvisitedCells.back();
-		auto neighbors = grid.neighbors4(x, y);
-		std::shuffle(neighbors.begin(), neighbors.end(), rng);
-		for (int i = 0; i < neighbors.size(); ++i) {
-			auto [nx, ny, dir] = neighbors[i];
-			if (!grid.getConstVisitedCell(nx, ny).isVisited) {
-				grid.carve(x, y, dir);
-				grid.getVisitedCell(nx, ny).isVisited = true;
-				unvisitedCells.push_back({ nx, ny });
-				break; // Exit the loop after carving one passage
-			}
-			if (i == neighbors.size() - 1) {
-				unvisitedCells.pop_back(); // No unvisited neighbors, remove current cell
-			}
-		}
-	}
+
+void GrowingTreeStrategy::generate(
+  MazeGrid & grid, Random & rng, const MazeStrategyOptions & options)
+{
+  std::vector<uint8_t> visited(grid.cell_count(), 0);
+  const int start_x = rng.uniform_int(0, grid.width() - 1);
+  const int start_y = rng.uniform_int(0, grid.height() - 1);
+  // Cells that may still have unvisited neighbors
+  std::vector<std::pair<int, int>> active_cells{{start_x, start_y}};
+  visited[grid.cell_index(start_x, start_y)] = 1;
+
+  while (!active_cells.empty()) {
+    // Which cell grows next is what gives the maze its look. The newest one is already
+    // at the back; a random one is swapped there, which avoids shuffling the whole list
+    if (!rng.chance(options.growing_tree_newest_ratio)) {
+      std::swap(active_cells[rng.index(active_cells.size())], active_cells.back());
+    }
+    const auto [x, y] = active_cells.back();
+
+    NeighborList unvisited;
+    for (const Neighbor & candidate : grid.neighbors(x, y)) {
+      if (!visited[grid.cell_index(candidate.x, candidate.y)]) {
+        unvisited.push_back(candidate);
+      }
+    }
+    if (unvisited.empty()) {
+      active_cells.pop_back();  // nothing left to grow into from this cell
+      continue;
+    }
+    const auto [nx, ny, dir] = unvisited[rng.index(unvisited.size())];
+    grid.carve(x, y, dir);
+    visited[grid.cell_index(nx, ny)] = 1;
+    active_cells.push_back({nx, ny});
+  }
 }
 
 }  // namespace maze_gen

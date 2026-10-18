@@ -1,26 +1,25 @@
-#include "maze_gen/binary_tree_strategy.hpp"
+#include "strategies.hpp"
 
-namespace maze_gen {
-
-void BinaryTreeStrategy::generateMaze(MazeGrid& grid)
+namespace maze_gen
 {
-	_rng = make_rng(); // reseed here: the seed is set after construction
-	for(int i = 0; i < grid.width(); ++i) {
-		for(int j = 0; j < grid.height(); ++j) {
-			Dir dir = choose_random_option();
-			grid.carve(i, j, dir);
-		}
-	}
-}
 
-Dir BinaryTreeStrategy::choose_random_option()
+void BinaryTreeStrategy::generate(MazeGrid & grid, Random & rng, const MazeStrategyOptions &)
 {
-	if (_dist(_rng) == 0) {
-		return Dir::N;
-	}
-	else {
-		return Dir::W;
-	}
+  for (int x = 0; x < grid.width(); ++x) {
+    for (int y = 0; y < grid.height(); ++y) {
+      // Every cell opens north or west. Border cells have a single way to go, and the
+      // corner has none
+      const bool can_go_north = y > 0;
+      const bool can_go_west = x > 0;
+      if (can_go_north && can_go_west) {
+        grid.carve(x, y, rng.chance(0.5) ? Dir::N : Dir::W);
+      } else if (can_go_north) {
+        grid.carve(x, y, Dir::N);
+      } else if (can_go_west) {
+        grid.carve(x, y, Dir::W);
+      }
+    }
+  }
 }
 
 }  // namespace maze_gen

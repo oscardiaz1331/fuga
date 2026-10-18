@@ -1,241 +1,213 @@
-#include "maze_gen/cellular_automaton_strategy.hpp"
 #include <algorithm>
-#include <climits>
-#include <cmath> 
-#include <cmath> 
-#include <queue>
+#include <vector>
+#include "strategies.hpp"
 
-namespace maze_gen {
-
-// In this case, the isAlive flag is used to track if a cell is dead or alive
-void CellularAutomatonStrategy::generateMaze(MazeGrid& grid)
+namespace maze_gen
 {
-	_rng = make_rng(); // reseed here: the seed is set after construction
-	initializeGrid(grid);
-	applyRules(grid);
-	ensureConnectivity(grid);
-	terminate(grid);
+
+namespace
+{
+
+// One flag per cell, in row-major order: 1 = alive (open), 0 = dead (solid rock)
+using Cells = std::vector<uint8_t>;
+
+constexpr int kDx[4] = {0, 1, 0, -1};
+constexpr int kDy[4] = {-1, 0, 1, 0};
+
+// A dead cell comes alive with exactly this many alive neighbors, and an alive cell
+// dies with fewer than kSurviveMin
+constexpr int kBirthCount = 3;
+constexpr int kSurviveMin = 1;
+// The rule settles after a few rounds: more of them change almost nothing
+constexpr int kIterations = 5;
+
+// The level only sets how much rock there is to start with, from 35% to 70% of the
+// cells. The rule is the same for every level, so the rock left in the result grows
+// steadily with it: about 16% at level 0 and 52% at level 10
+double initial_dead_probability(int cave_level)
+{
+  return 0.35 + 0.035 * cave_level;
 }
 
-void CellularAutomatonStrategy::setDifficulty(int difficulty)
+void initialize(Cells & alive, Random & rng, double dead_probability)
 {
-	difficulty = std::clamp(difficulty, 0, 10);
-	float d = static_cast<float>(difficulty) / 10.0f;
-    _initialThreshold = 0.50f + 0.20f * d;  // 50%-70% initial walls
-    _iterations = static_cast<int>(std::round(5 + 5 * d));  // 5-55 iterations
-   
-    if (difficulty <= 5) {
-        _num_neighbours = 4;
-        _birthThreshold = 0.75;// Birth when 3 neighbors
-        _deathThreshold = 0.25;  // Death when 0 neighbors
-    }
-    else {
-		_num_neighbours = 8; // Use 8-connected neighbors for higher difficulty 
-        _birthThreshold = 0.4375f + 0.0625f * d;  // Birth when 3.5-4+ neighbors
-        _deathThreshold = 0.25f + 0.125f * d;  // Death when <2-3 neighbors
-    }
-
+  for (uint8_t & cell : alive) {
+    cell = rng.chance(dead_probability) ? 0 : 1;
+  }
 }
 
-void CellularAutomatonStrategy::initializeGrid(MazeGrid& grid)
+void apply_rules(Cells & alive, int width, int height, int iterations)
 {
-	std::uniform_real_distribution<float> dist{ 0.0f, 1.0f };
-	for(int x = 0; x < grid.width(); ++x) {
-		for(int y = 0; y < grid.height(); ++y) {
-			//if (x == 0 || x == grid.width() - 1 || y == 0 || y == grid.height() - 1) {
-			//	grid.at(x, y).isAlive = false; // Border cells are always walls
-			//}
-			//else {
-				float random_value = dist(_rng);
-				if (random_value < _initialThreshold) {
-					grid.getAliveCell(x, y).isAlive = false; // Cell is "dead"
-				}
-				else {
-					grid.getAliveCell(x, y).isAlive = true; // Cell is "alive"
-				}
-			//}
-		}
-	}
-}
-
-void CellularAutomatonStrategy::applyRules(MazeGrid& grid)
-{
-	for(int iter = 0; iter < _iterations; ++iter) {
-		MazeGrid aux_grid = grid; // Auxiliary grid to store the next state
-		for(int x = 0; x < grid.width(); ++x) {
-			for(int y = 0; y < grid.height(); ++y) {
-				/*if (x == 0 || x == grid.width() - 1 || y == 0 || y == grid.height() - 1) {
-					aux_grid.at(x, y).isAlive = false;
-					continue;
-				}*/
-				int alive_neighbors = 0;
-                if(_num_neighbours == 4) { 
-                    for (const auto& [nx, ny, dir] : grid.neighbors4(x, y)) {
-                        if (grid.getConstAliveCell(nx, ny).isAlive) {
-                            ++alive_neighbors;
-                        }
-                    }
-                }
-                else {
-                    for (const auto& [nx, ny, dir] : grid.neighbors8(x, y)) {
-                        if (grid.getConstAliveCell(nx, ny).isAlive) {
-                            ++alive_neighbors;
-                        }
-                    }
-                }
-				if (grid.getConstAliveCell(x, y).isAlive) {
-                    // Cell dies if it has too few neighbors (isolation)
-					if (alive_neighbors < static_cast <int>(_num_neighbours * _deathThreshold)) {
-						aux_grid.getAliveCell(x, y).isAlive = false; // Cell dies
-					}
-					else {
-						aux_grid.getAliveCell(x, y).isAlive = true; // Cell stays alive
-					}
-				}
-				else
-				{
-                    // Cell is born if it has enough neighbors but not too many
-                    if (alive_neighbors == static_cast<int>(_num_neighbours * _birthThreshold)) {
-                        aux_grid.getAliveCell(x, y).isAlive = true; // Born
-                    }
-                    else {
-                        aux_grid.getAliveCell(x, y).isAlive = false; // Stay dead (too isolated)
-                    }
-				}
-			}
-		}
-		grid = aux_grid; // Update the original grid with the new state
-	}
-}
-
-void CellularAutomatonStrategy::ensureConnectivity(MazeGrid& grid)
-{
-    // Find all connected components of alive cells
-    std::vector<std::vector<bool>> visited(grid.width(), std::vector<bool>(grid.height(), false));
-    std::vector<std::vector<std::pair<int, int>>> components;
-
-    // Find connected components using flood fill
-    for (int x = 1; x < grid.width() - 1; ++x) {
-        for (int y = 1; y < grid.height() - 1; ++y) {
-            if (grid.getConstAliveCell(x, y).isAlive && !visited[x][y]) {
-                std::vector<std::pair<int, int>> component;
-                std::queue<std::pair<int, int>> queue;
-
-                queue.push({ x, y });
-                visited[x][y] = true;
-
-                while (!queue.empty()) {
-                    auto [cx, cy] = queue.front();
-                    queue.pop();
-                    component.push_back({ cx, cy });
-
-                    // Check 8-connected neighbors
-                    for (const auto& [nx, ny, dir] : grid.neighbors8(cx, cy)) {
-                        if (!visited[nx][ny] && grid.getConstAliveCell(nx, ny).isAlive) {
-                            visited[nx][ny] = true;
-                            queue.push({ nx, ny });
-                        }
-                    }
-                }
-
-                if (!component.empty()) {
-                    components.push_back(component);
-                }
-            }
+  // Two buffers swapped after every iteration, instead of copying the grid
+  Cells next(alive.size(), 0);
+  for (int iteration = 0; iteration < iterations; ++iteration) {
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        // Cells outside the grid count as dead
+        int alive_neighbors = 0;
+        for (int k = 0; k < 4; ++k) {
+          const int nx = x + kDx[k];
+          const int ny = y + kDy[k];
+          if (nx >= 0 && ny >= 0 && nx < width && ny < height && alive[ny * width + nx]) {
+            ++alive_neighbors;
+          }
         }
+        const int index = y * width + x;
+        if (alive[index]) {
+          next[index] = alive_neighbors >= kSurviveMin ? 1 : 0;
+        } else {
+          next[index] = alive_neighbors == kBirthCount ? 1 : 0;
+        }
+      }
     }
-
-    // If no components found, create a minimal path
-    if (components.empty()) {
-        // Create a simple cross pattern in the center
-        int cx = grid.width() / 2;
-        int cy = grid.height() / 2;
-
-        for (int x = cx - 1; x <= cx + 1; ++x) {
-            if (x > 0 && x < grid.width() - 1) {
-                grid.getAliveCell(x, cy).isAlive = true;
-            }
-        }
-        for (int y = cy - 1; y <= cy + 1; ++y) {
-            if (y > 0 && y < grid.height() - 1) {
-                grid.getAliveCell(cx, y).isAlive = true;
-            }
-        }
-        return;
-    }
-
-    // Connect all components to the largest one
-    if (components.size() > 1) {
-        // Find largest component
-        size_t largest_idx = 0;
-        for (size_t i = 1; i < components.size(); ++i) {
-            if (components[i].size() > components[largest_idx].size()) {
-                largest_idx = i;
-            }
-        }
-
-        // Connect each smaller component to the largest one
-        for (size_t i = 0; i < components.size(); ++i) {
-            if (i == largest_idx) continue;
-
-            // Find closest points between components
-            auto& main_component = components[largest_idx];
-            auto& small_component = components[i];
-
-            int min_dist = INT_MAX;
-            int best_mx = -1, best_my = -1, best_sx = -1, best_sy = -1;
-
-            for (auto [mx, my] : main_component) {
-                for (auto [sx, sy] : small_component) {
-                    int dist = std::abs(mx - sx) + std::abs(my - sy);
-                    if (dist < min_dist) {
-                        min_dist = dist;
-                        best_mx = mx; best_my = my;
-                        best_sx = sx; best_sy = sy;
-                    }
-                }
-            }
-
-            // Create a path between the closest points
-            connectPoints(grid, best_mx, best_my, best_sx, best_sy);
-        }
-    }
+    alive.swap(next);
+  }
 }
 
-void CellularAutomatonStrategy::connectPoints(MazeGrid& grid, int x1, int y1, int x2, int y2)
+void connect_points(Cells & alive, int width, int x1, int y1, int x2, int y2)
 {
-    // Simple L-shaped connection
-    int cx = x1, cy = y1;
-
-    // Move horizontally first
-    while (cx != x2) {
-        grid.getAliveCell(cx, cy).isAlive = true;
-        cx += (x2 > cx) ? 1 : -1;
-    }
-
-    // Then move vertically
-    while (cy != y2) {
-        grid.getAliveCell(cx, cy).isAlive = true;
-        cy += (y2 > cy) ? 1 : -1;
-    }
-
-    // Ensure destination is alive
-    grid.getAliveCell(x2, y2).isAlive = true;
+  // L-shaped corridor: along the row first, then along the column
+  int x = x1;
+  int y = y1;
+  while (x != x2) {
+    alive[y * width + x] = 1;
+    x += (x2 > x) ? 1 : -1;
+  }
+  while (y != y2) {
+    alive[y * width + x] = 1;
+    y += (y2 > y) ? 1 : -1;
+  }
+  alive[y2 * width + x2] = 1;
 }
 
-void CellularAutomatonStrategy::terminate(MazeGrid& grid)
+// Join every group of alive cells to the largest one
+void ensure_connectivity(Cells & alive, int width, int height)
 {
-	for (int x = 0; x < grid.width(); ++x) {
-		for (int y = 0; y < grid.height(); ++y) {
-			if (grid.getConstAliveCell(x, y).isAlive) {
-				for (const auto& [nx, ny, dir] : grid.neighbors8(x, y)) {
-					if (grid.getConstAliveCell(nx, ny).isAlive) {
-						grid.carve(x, y, dir); // Carve passage if cell is alive
-					}
-				}
-			}
-		}
-	}
+  const int total = width * height;
+
+  // Label the groups with a flood fill. Two cells belong together only if they share a
+  // side: touching by a corner is not a way through
+  std::vector<int> component(total, -1);
+  std::vector<int> component_size;
+  std::vector<int> queue;
+  queue.reserve(total);
+  for (int start = 0; start < total; ++start) {
+    if (!alive[start] || component[start] != -1) {
+      continue;
+    }
+    const int id = static_cast<int>(component_size.size());
+    queue.clear();
+    queue.push_back(start);
+    component[start] = id;
+    for (size_t head = 0; head < queue.size(); ++head) {
+      const int cx = queue[head] % width;
+      const int cy = queue[head] / width;
+      for (int k = 0; k < 4; ++k) {
+        const int nx = cx + kDx[k];
+        const int ny = cy + kDy[k];
+        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+          continue;
+        }
+        const int neighbor = ny * width + nx;
+        if (alive[neighbor] && component[neighbor] == -1) {
+          component[neighbor] = id;
+          queue.push_back(neighbor);
+        }
+      }
+    }
+    component_size.push_back(static_cast<int>(queue.size()));
+  }
+
+  if (component_size.size() <= 1) {
+    return;
+  }
+
+  const int largest = static_cast<int>(
+    std::max_element(component_size.begin(), component_size.end()) - component_size.begin());
+
+  // One breadth-first search from the whole largest group gives, for every cell, its
+  // Manhattan distance to that group and which of its cells is the closest
+  std::vector<int> distance(total, -1);
+  std::vector<int> origin(total, -1);
+  queue.clear();
+  for (int i = 0; i < total; ++i) {
+    if (component[i] == largest) {
+      distance[i] = 0;
+      origin[i] = i;
+      queue.push_back(i);
+    }
+  }
+  for (size_t head = 0; head < queue.size(); ++head) {
+    const int current = queue[head];
+    const int cx = current % width;
+    const int cy = current / width;
+    for (int k = 0; k < 4; ++k) {
+      const int nx = cx + kDx[k];
+      const int ny = cy + kDy[k];
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
+        continue;
+      }
+      const int neighbor = ny * width + nx;
+      if (distance[neighbor] != -1) {
+        continue;
+      }
+      distance[neighbor] = distance[current] + 1;
+      origin[neighbor] = origin[current];
+      queue.push_back(neighbor);
+    }
+  }
+
+  // The closest cell of every smaller group gets a corridor to the largest one
+  std::vector<int> closest(component_size.size(), -1);
+  for (int i = 0; i < total; ++i) {
+    const int id = component[i];
+    if (id == -1 || id == largest) {
+      continue;
+    }
+    if (closest[id] == -1 || distance[i] < distance[closest[id]]) {
+      closest[id] = i;
+    }
+  }
+  for (int target : closest) {
+    if (target == -1) {
+      continue;
+    }
+    const int from = origin[target];
+    connect_points(alive, width, from % width, from / width, target % width, target / width);
+  }
+}
+
+// Turn the alive cells into open space: no wall between two alive neighbors
+void carve_cave(MazeGrid & grid, const Cells & alive)
+{
+  for (int y = 0; y < grid.height(); ++y) {
+    for (int x = 0; x < grid.width(); ++x) {
+      if (!alive[grid.cell_index(x, y)]) {
+        continue;
+      }
+      for (const auto & [nx, ny, dir] : grid.neighbors(x, y)) {
+        if (alive[grid.cell_index(nx, ny)]) {
+          grid.carve(x, y, dir);
+        }
+      }
+    }
+  }
+}
+
+}  // namespace
+
+// Not a maze but a cave: open areas of irregular shape between blocks of solid rock.
+// The grid only stores walls, so which cells are alive is kept here until the last step.
+void CellularAutomatonStrategy::generate(
+  MazeGrid & grid, Random & rng, const MazeStrategyOptions & options)
+{
+  const int width = grid.width();
+  const int height = grid.height();
+  Cells alive(grid.cell_count(), 0);
+  initialize(alive, rng, initial_dead_probability(options.cave_level));
+  apply_rules(alive, width, height, kIterations);
+  ensure_connectivity(alive, width, height);
+  carve_cave(grid, alive);
 }
 
 }  // namespace maze_gen

@@ -1,76 +1,67 @@
-#include "maze_gen/ellers_strategy.hpp"
 #include <algorithm>
-#include "maze_gen/union_find.hpp"
-#include <random>
+#include <utility>
+#include <vector>
+#include "strategies.hpp"
+#include "union_find.hpp"
 
-namespace maze_gen {
-
-void EllersStrategy::generateMaze(MazeGrid& grid)
+namespace maze_gen
 {
-    const int width = grid.width();
-    const int height = grid.height();
-    const int total_cells = width * height;
-    auto rng = make_rng();
-    std::uniform_real_distribution<float> prob(0.f, 1.f);
 
-    UnionFind uf(total_cells);
+void EllersStrategy::generate(MazeGrid & grid, Random & rng, const MazeStrategyOptions & options)
+{
+  const int width = grid.width();
+  const int height = grid.height();
+  UnionFind sets(grid.cell_count());
 
-    auto cellId = [width](int y, int x) { return y * width + x; };
+  // (set, x) for every cell of the current row; reused for all rows
+  std::vector<std::pair<int, int>> row_cells;
+  row_cells.reserve(width);
 
-    // Process each row
-    for (int y = 0; y < height; ++y) {
-        // 1) Join adjacent cells horizontally (randomly) within the row
-        for (int x = 0; x < width - 1; ++x) {
-            int idLeft = cellId(y, x);
-            int idRight = cellId(y, x + 1);
+  for (int y = 0; y < height; ++y) {
+    const bool last_row = (y == height - 1);
 
-            if (!uf.connected(idLeft, idRight) && prob(rng) < _threshold) {
-                grid.carve(x, y, Dir::E);
-                uf.unite(idLeft, idRight);
-            }
-        }
-
-        // 2) If not last row, carve vertical connections downwards, at least one per set
-        if (y < height - 1) {
-            std::unordered_map<int, std::vector<int>> sets; // root_id -> list of x in this row
-
-            for (int x = 0; x < width; ++x) {
-                int id = cellId(y, x);
-                int root = uf.find(id);
-                sets[root].push_back(x);
-            }
-
-            // For each set, choose at least one cell to carve down, maybe more
-            for (auto& [root, cells] : sets) {
-                std::shuffle(cells.begin(), cells.end(), rng);
-
-                // number of down-connections: uniform between 1 and cells.size()
-                std::uniform_int_distribution<int> downDist(1, static_cast<int>(cells.size()));
-                int num_down = downDist(rng);
-
-                for (int i = 0; i < num_down; ++i) {
-                    int x = cells[i];
-                    // carve south from (x, y) to (x, y+1)
-                    grid.carve(x, y, Dir::S);
-                    int idAbove = cellId(y, x);
-                    int idBelow = cellId(y + 1, x);
-                    uf.unite(idAbove, idBelow);
-                }
-            }
-            // After this, next row cells exist as their own ids (if not united they remain separate)
-        }
-    }
-
-    // 3) Last row: ensure all adjacent cells horizontally are connected
-    int y = height - 1;
+    // 1) Join neighboring cells of different sets: at random, or all of them on the
+    //    last row, where nothing below can connect them later
     for (int x = 0; x < width - 1; ++x) {
-        int idLeft = cellId(y, x);
-        int idRight = cellId(y, x + 1);
-        if (!uf.connected(idLeft, idRight)) {
-            grid.carve(x, y, Dir::E);
-            uf.unite(idLeft, idRight);
-        }
+      const int left = grid.cell_index(x, y);
+      const int right = grid.cell_index(x + 1, y);
+      if (sets.connected(left, right)) {
+        continue;
+      }
+      if (last_row || rng.chance(options.ellers_join_probability)) {
+        grid.carve(x, y, Dir::E);
+        sets.unite(left, right);
+      }
     }
+    if (last_row) {
+      break;
+    }
+
+    // 2) Every set of the row opens downwards through at least one of its cells.
+    //    Sorting puts the cells of each set together, in an order that does not
+    //    depend on the standard library (a hash map would)
+    row_cells.clear();
+    for (int x = 0; x < width; ++x) {
+      row_cells.emplace_back(sets.find(grid.cell_index(x, y)), x);
+    }
+    std::sort(row_cells.begin(), row_cells.end());
+
+    for (size_t first = 0; first < row_cells.size(); ) {
+      size_t last = first;
+      while (last < row_cells.size() && row_cells[last].first == row_cells[first].first) {
+        ++last;
+      }
+      rng.shuffle(row_cells.begin() + first, row_cells.begin() + last);
+
+      const int down_count = rng.uniform_int(1, static_cast<int>(last - first));
+      for (int i = 0; i < down_count; ++i) {
+        const int x = row_cells[first + i].second;
+        grid.carve(x, y, Dir::S);
+        sets.unite(grid.cell_index(x, y), grid.cell_index(x, y + 1));
+      }
+      first = last;
+    }
+  }
 }
 
 }  // namespace maze_gen

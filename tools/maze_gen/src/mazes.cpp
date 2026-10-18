@@ -1,80 +1,53 @@
-#include <iostream>
-#include <fstream>
-#include <memory>
+// Demo: writes one text file per algorithm with the same maze at three difficulties.
+// Usage: maze_gen_demo [output_directory]   (default: ./data)
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <string>
 #include "maze_gen/maze_generator.hpp"
 
-using maze_gen::MazeAlgorithm;
-using maze_gen::MazeGenerator;
-using maze_gen::MazeGrid;
-using maze_gen::MazeStrategyOptions;
-
-std::string algorithmName(MazeAlgorithm algo) {
-	switch (algo) {
-	case MazeAlgorithm::DFS: return "DFS";
-	case MazeAlgorithm::AldousBroder: return "AldousBroder";
-	case MazeAlgorithm::CellularAutomaton: return "CellularAutomaton";
-	case MazeAlgorithm::Ellers: return "Ellers";
-	case MazeAlgorithm::GrowingTree: return "GrowingTree";
-	case MazeAlgorithm::BinaryTree: return "BinaryTree";
-	case MazeAlgorithm::HuntAndKill: return "HuntAndKill";
-	case MazeAlgorithm::Kruskal: return "Kruskal";
-	case MazeAlgorithm::Prim: return "Prim";
-	case MazeAlgorithm::RecursiveDivision: return "RecursiveDivision";
-	case MazeAlgorithm::Sidewinder: return "Sidewinder";
-	case MazeAlgorithm::Wilson: return "Wilson";
-	default: return "Unknown";
-	}
-}
-
-int main()
+int main(int argc, char ** argv)
 {
-	MazeGenerator generator{};
-	uint64_t seed = 123456789;
-	MazeStrategyOptions opts;
-	opts.difficulty = 2;
-	opts.num_random_exits = 10; 
-	opts.seed = seed;
-	auto maze = MazeGrid(50, 50);
-	std::vector<MazeAlgorithm> algorithms = {
-		MazeAlgorithm::DFS,
-		MazeAlgorithm::AldousBroder,
-		MazeAlgorithm::CellularAutomaton,
-		MazeAlgorithm::Ellers,
-		MazeAlgorithm::BinaryTree,
-		MazeAlgorithm::GrowingTree,
-		MazeAlgorithm::HuntAndKill,
-		MazeAlgorithm::Kruskal,
-		MazeAlgorithm::Prim,
-		MazeAlgorithm::RecursiveDivision,
-		MazeAlgorithm::Sidewinder,
-		MazeAlgorithm::Wilson
-	};
+  const std::filesystem::path output_dir = argc > 1 ? argv[1] : "data";
+  std::error_code error;
+  std::filesystem::create_directories(output_dir, error);
+  if (error) {
+    std::cerr << "Error: could not create " << output_dir << ": " << error.message() << "\n";
+    return 1;
+  }
 
-	for (const auto algo : algorithms) {
-		std::string filename = "data/" + algorithmName(algo) + ".txt";
-		std::ofstream out(filename, std::ios::out | std::ios::binary);
-		generator.setMazeStrategy(algo);
-		if (out.is_open()) {
-			for (int i = 0; i < 1; ++i) {
-				opts.seed = seed + i;
-				opts.difficulty = i;
-				out << "Generating maze with difficulty " << i << ":\nSimple:\n";
-				auto start = std::chrono::high_resolution_clock::now();
-				generator.generate(maze, opts);
-				auto end = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<double, std::milli> elapsed = end - start;
-	
-				maze.displaySimple(out);
-				out << "\n Complex:\n";
-				maze.displayComplex(out);
-				out << "\nMaze generated in " << elapsed.count() << " ms\n";
-			}
-			std::cout << "\nMaze " + algorithmName(algo) + " saved\n";
-			out.close();
-		}
-		else {
-			std::cerr << "Error: Could not open file for writing.\n";
-		}
-	}
+  maze_gen::MazeStrategyOptions options;
+  options.seed = 123456789;
+  options.num_random_exits = 10;
+  maze_gen::MazeGrid maze(50, 50);
+
+  int failures = 0;
+  for (const maze_gen::MazeAlgorithm algorithm : maze_gen::all_algorithms()) {
+    const std::string name(maze_gen::to_string(algorithm));
+    const std::filesystem::path file = output_dir / (name + ".txt");
+    std::ofstream out(file, std::ios::out | std::ios::binary);
+    if (!out.is_open()) {
+      std::cerr << "Error: could not open " << file << " for writing\n";
+      ++failures;
+      continue;
+    }
+
+    maze_gen::MazeGenerator generator{algorithm};
+    for (const int difficulty : {10, 5, 0}) {
+      options.difficulty = difficulty;
+      const auto start = std::chrono::steady_clock::now();
+      generator.generate(maze, options);
+      const std::chrono::duration<double, std::milli> elapsed =
+        std::chrono::steady_clock::now() - start;
+
+      out << "Maze with difficulty " << difficulty << ":\nSimple:\n";
+      maze.display_simple(out);
+      out << "\nComplex:\n";
+      maze.display_complex(out);
+      out << "\nMaze generated in " << elapsed.count() << " ms\n\n";
+    }
+    std::cout << "Maze " << name << " saved to " << file.string() << "\n";
+  }
+  return failures == 0 ? 0 : 1;
 }

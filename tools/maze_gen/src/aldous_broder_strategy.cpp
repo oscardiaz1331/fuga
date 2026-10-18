@@ -1,31 +1,29 @@
-#include "maze_gen/aldous_broder_strategy.hpp"
-#include <random>
+#include <vector>
+#include "strategies.hpp"
 
-namespace maze_gen {
-
-void AldousBroderStrategy::generateMaze(MazeGrid& grid)
+namespace maze_gen
 {
-	auto rng = make_rng();
-	std::uniform_int_distribution<int> distW(0, grid.width() - 1);
-	std::uniform_int_distribution<int> distH(0, grid.height() - 1);
-	int x = distW(rng);
-	int y = distH(rng);
-	int numTotalCells = grid.width() * grid.height();
-	grid.getVisitedCell(x, y).isVisited = true;
-	int cellsVisited = 1;
-	while (cellsVisited < numTotalCells) {
-		auto neighbors = grid.neighbors4(x, y);
-		std::uniform_int_distribution<size_t> distN(0, neighbors.size() - 1);
-		auto [nx, ny, dir] = neighbors[distN(rng)];
-		if (!grid.getConstVisitedCell(nx, ny).isVisited)
-		{
-			grid.carve(x, y, dir);
-			grid.getVisitedCell(nx, ny).isVisited = true;
-			++cellsVisited;
-		}
-		x = nx;
-		y = ny;
-	}
+
+void AldousBroderStrategy::generate(MazeGrid & grid, Random & rng, const MazeStrategyOptions &)
+{
+  std::vector<uint8_t> visited(grid.cell_count(), 0);
+  int x = rng.uniform_int(0, grid.width() - 1);
+  int y = rng.uniform_int(0, grid.height() - 1);
+  visited[grid.cell_index(x, y)] = 1;
+  int cells_visited = 1;
+
+  // A plain random walk: a wall only comes down the first time a cell is entered
+  while (cells_visited < grid.cell_count()) {
+    const auto neighbors = grid.neighbors(x, y);
+    const auto [nx, ny, dir] = neighbors[rng.index(neighbors.size())];
+    if (!visited[grid.cell_index(nx, ny)]) {
+      grid.carve(x, y, dir);
+      visited[grid.cell_index(nx, ny)] = 1;
+      ++cells_visited;
+    }
+    x = nx;
+    y = ny;
+  }
 }
 
 }  // namespace maze_gen

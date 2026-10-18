@@ -1,66 +1,66 @@
-#include "maze_gen/recursive_division_strategy.hpp"
-#include <random>
-#include <algorithm>
+#include "strategies.hpp"
 
-namespace maze_gen {
+namespace maze_gen
+{
 
-void RecursiveDivisionStrategy::generateMaze(MazeGrid& grid) {
-    _rng = make_rng(); // reseed here: the seed is set after construction
-    bool initialHorizontal = std::uniform_int_distribution<>(0, 1)(_rng);
-    divide(grid, 0, 0, grid.width(), grid.height(), initialHorizontal);
+namespace
+{
+
+void divide(MazeGrid & grid, Random & rng, int x, int y, int width, int height)
+{
+  // A region one cell wide is already a corridor: nothing left to divide
+  if (width < 2 || height < 2) {
+    return;
+  }
+
+  // Cut across the longer side; pick at random when the region is square
+  bool horizontal;
+  if (width < height) {
+    horizontal = true;
+  } else if (height < width) {
+    horizontal = false;
+  } else {
+    horizontal = rng.chance(0.5);
+  }
+
+  if (horizontal) {
+    // Wall between rows wall_y - 1 and wall_y, with a single passage
+    const int wall_y = y + rng.uniform_int(1, height - 1);
+    const int passage_x = x + rng.uniform_int(0, width - 1);
+    for (int cx = x; cx < x + width; ++cx) {
+      if (cx != passage_x) {
+        grid.add_wall(cx, wall_y - 1, Dir::S);
+      }
+    }
+    divide(grid, rng, x, y, width, wall_y - y);
+    divide(grid, rng, x, wall_y, width, y + height - wall_y);
+  } else {
+    // Wall between columns wall_x - 1 and wall_x, with a single passage
+    const int wall_x = x + rng.uniform_int(1, width - 1);
+    const int passage_y = y + rng.uniform_int(0, height - 1);
+    for (int cy = y; cy < y + height; ++cy) {
+      if (cy != passage_y) {
+        grid.add_wall(wall_x - 1, cy, Dir::E);
+      }
+    }
+    divide(grid, rng, x, y, wall_x - x, height);
+    divide(grid, rng, wall_x, y, x + width - wall_x, height);
+  }
 }
 
-void RecursiveDivisionStrategy::divide(MazeGrid& grid, int x, int y, int width, int height, bool horizontal) {
-    // Stop if too small to divide further
-    if (width < 2 || height < 2) return;
+}  // namespace
 
-    // Decide orientation based on shape if not forced
-    if (width < height) horizontal = true;
-    else if (height < width) horizontal = false;
-    else horizontal = std::uniform_int_distribution<>(0, 1)(_rng);
-
-    if (horizontal) {
-        if (height < 3) return;
-
-        // Pick wall row (must be between y+1 and y+height-2 and odd)
-        int wallY = y + 1 + 2 * std::uniform_int_distribution<>(0, (height - 2) / 2)(_rng);
-
-        // Pick passage column (must be even index within region)
-        int passageX = x + 2 * std::uniform_int_distribution<>(0, (width - 1) / 2)(_rng);
-
-        // Build horizontal wall
-        for (int dx = 0; dx < width; ++dx) {
-            int cx = x + dx;
-            if (cx != passageX) {
-                grid.carve(cx, wallY - 1, Dir::S); // carve south from cell above
-            }
-        }
-
-        // Recurse above and below
-        divide(grid, x, y, width, wallY - y, false);
-        divide(grid, x, wallY, width, y + height - wallY, false);
+void RecursiveDivisionStrategy::generate(
+  MazeGrid & grid, Random & rng, const MazeStrategyOptions &)
+{
+  // This algorithm adds walls instead of removing them, so it starts from one empty room
+  for (int y = 0; y < grid.height(); ++y) {
+    for (int x = 0; x < grid.width(); ++x) {
+      grid.carve(x, y, Dir::E);
+      grid.carve(x, y, Dir::S);
     }
-    else { // vertical
-        if (width < 3) return;
-
-        // Pick wall column
-        int wallX = x + 1 + 2 * std::uniform_int_distribution<>(0, (width - 2) / 2)(_rng);
-
-        // Pick passage row
-        int passageY = y + 2 * std::uniform_int_distribution<>(0, (height - 1) / 2)(_rng);
-
-        // Build vertical wall
-        for (int dy = 0; dy < height; ++dy) {
-            int cy = y + dy;
-            if (cy != passageY) {
-                grid.carve(wallX - 1, cy, Dir::E); // carve east from cell to left
-            }
-        }
-
-        // Recurse left and right
-        divide(grid, x, y, wallX - x, height, true);
-        divide(grid, wallX, y, x + width - wallX, height, true);
-    }
+  }
+  divide(grid, rng, 0, 0, grid.width(), grid.height());
 }
 
 }  // namespace maze_gen

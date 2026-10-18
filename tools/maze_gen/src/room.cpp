@@ -1,72 +1,43 @@
-#include "maze_gen/room.hpp"
+#include "room.hpp"
 
-namespace maze_gen {
+namespace maze_gen
+{
 
-Room::Room(int x, int y, int w, int h)
-    : _x(x), _y(y), _width(w), _height(h) {
+Room::Room(int x, int y, int width, int height)
+: x_(x), y_(y), width_(width), height_(height)
+{
 }
 
 bool Room::contains(int px, int py) const
 {
-    return px >= _x && px < _x + _width && py >= _y && py < _y + _height;
+  return px >= x_ && px < x_ + width_ && py >= y_ && py < y_ + height_;
 }
 
-bool Room::overlaps(const Room& other, int buffer) const
+bool Room::overlaps(const Room & other, int buffer) const
 {
-    return !(_x >= other._x + other._width + buffer ||
-        other._x >= _x + _width + buffer ||
-        _y >= other._y + other._height + buffer ||
-        other._y >= _y + _height + buffer);
+  return !(x_ >= other.x_ + other.width_ + buffer ||
+         other.x_ >= x_ + width_ + buffer ||
+         y_ >= other.y_ + other.height_ + buffer ||
+         other.y_ >= y_ + height_ + buffer);
 }
 
-std::pair<int, int> Room::center() const
+std::vector<std::pair<int, int>> Room::perimeter_cells() const
 {
-    return { _x + _width / 2, _y + _height / 2 };
-}
-
-std::pair<int, int> Room::topLeft() const
-{
-    return { _x, _y };
-}
-
-int Room::height() const
-{
-    return _height;
-}
-
-int Room::width() const
-{
-    return _width;
-}
-
-std::vector<std::pair<int, int>> Room::getAllCells()
-{
-    std::vector<std::pair<int, int>> cells;
-    for (int ry = _y; ry < _y + _height; ++ry) {
-        for (int rx = _x; rx < _x + _width; ++rx) {
-            cells.emplace_back(rx, ry);
-        }
+  std::vector<std::pair<int, int>> perimeter;
+  for (int x = x_; x < x_ + width_; ++x) {
+    perimeter.emplace_back(x, y_);
+    if (height_ > 1) {
+      perimeter.emplace_back(x, y_ + height_ - 1);
     }
-    return cells;
-}
-
-std::vector<std::pair<int, int>> Room::getPerimeterCells() const
-{
-    std::vector<std::pair<int, int>> perimeter;
-
-    // Top and bottom walls
-    for (int rx = _x; rx < _x + _width; ++rx) {
-        perimeter.emplace_back(rx, _y);              // Top
-        perimeter.emplace_back(rx, _y + _height - 1); // Bottom
+  }
+  // The side columns, without the corners already added
+  for (int y = y_ + 1; y < y_ + height_ - 1; ++y) {
+    perimeter.emplace_back(x_, y);
+    if (width_ > 1) {
+      perimeter.emplace_back(x_ + width_ - 1, y);
     }
-
-    // Left and right walls (excluding corners already added)
-    for (int ry = _y + 1; ry < _y + _height - 1; ++ry) {
-        perimeter.emplace_back(_x, ry);              // Left
-        perimeter.emplace_back(_x + _width - 1, ry);  // Right
-    }
-
-    return perimeter;
+  }
+  return perimeter;
 }
 
 }  // namespace maze_gen

@@ -1,61 +1,54 @@
 #include <vector>
-#include <random>
-#include <algorithm>
-#include "maze_gen/kruskals_strategy.hpp"
-#include "maze_gen/union_find.hpp"
+#include "strategies.hpp"
+#include "union_find.hpp"
 
-namespace maze_gen {
+namespace maze_gen
+{
 
-struct Edge {
-    int x, y;
-    Dir dir;
+namespace
+{
 
-    Edge(int x, int y, Dir dir) : x(x), y(y), dir(dir) {}
+// The wall between a cell and its neighbor to the east or to the south
+struct Edge
+{
+  int x;
+  int y;
+  Dir dir;
 };
 
-void KruskalsStrategy::generateMaze(MazeGrid& grid) {
-    const int width = grid.width();
-    const int height = grid.height();
-    const int total_cells = width * height;
+}  // namespace
 
-    UnionFind uf(total_cells);
+void KruskalsStrategy::generate(MazeGrid & grid, Random & rng, const MazeStrategyOptions &)
+{
+  const int width = grid.width();
+  const int height = grid.height();
 
-    std::vector<Edge> edges;
-
-    // Add all vertical and horizontal walls as edges
-    for (int y = 0; y < height; ++y) {
-        for (int x = 0; x < width; ++x) {
-            if (x < width - 1) // horizontal edge to the right
-                edges.emplace_back(x, y, Dir::E);
-            if (y < height - 1) // vertical edge downward
-                edges.emplace_back(x, y, Dir::S);
-        }
+  // Every inner wall, once
+  std::vector<Edge> edges;
+  edges.reserve(static_cast<size_t>(2) * grid.cell_count());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      if (x < width - 1) {
+        edges.push_back({x, y, Dir::E});
+      }
+      if (y < height - 1) {
+        edges.push_back({x, y, Dir::S});
+      }
     }
+  }
+  rng.shuffle(edges.begin(), edges.end());
 
-    auto rng = make_rng();
-    std::shuffle(edges.begin(), edges.end(), rng); // Randomized order
-
-    for (const auto& edge : edges) {
-        int x = edge.x;
-        int y = edge.y;
-        int nx = x, ny = y;
-
-        if (edge.dir == Dir::E)
-            nx = x + 1;
-        else if (edge.dir == Dir::S)
-            ny = y + 1;
-
-        if (nx >= width || ny >= height)
-            continue;
-
-        int cell1 = y * width + x;
-        int cell2 = ny * width + nx;
-
-        if (!uf.connected(cell1, cell2)) {
-            uf.unite(cell1, cell2);
-            grid.carve(x, y, edge.dir);
-        }
+  // Take the walls in random order, opening the ones that join two separate sets
+  UnionFind sets(grid.cell_count());
+  for (const Edge & edge : edges) {
+    const auto [nx, ny] = MazeGrid::neighbor(edge.x, edge.y, edge.dir);
+    const int cell = grid.cell_index(edge.x, edge.y);
+    const int other = grid.cell_index(nx, ny);
+    if (!sets.connected(cell, other)) {
+      sets.unite(cell, other);
+      grid.carve(edge.x, edge.y, edge.dir);
     }
+  }
 }
 
 }  // namespace maze_gen

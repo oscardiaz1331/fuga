@@ -1,87 +1,54 @@
-#include "maze_gen/maze_exit_generator.hpp"
+#include "maze_exit_generator.hpp"
 #include <algorithm>
-#include <random>
-#include <iostream>
-#include "maze_gen/random_generator.hpp"
-#include <set>
 
-namespace maze_gen {
-
-MazeExitGenerator::MazeExitGenerator()
+namespace maze_gen
 {
+
+std::vector<Exit> MazeExitGenerator::random_exit_slots(const MazeGrid & grid)
+{
+  const int width = grid.width();
+  const int height = grid.height();
+  std::vector<Exit> slots;
+
+  // Clockwise from the top-left, skipping the four corner cells
+  for (int x = 1; x <= width - 2; ++x) {
+    slots.push_back({x, 0, Dir::N});
+  }
+  for (int y = 1; y <= height - 2; ++y) {
+    slots.push_back({width - 1, y, Dir::E});
+  }
+  for (int x = width - 2; x >= 1; --x) {
+    slots.push_back({x, height - 1, Dir::S});
+  }
+  for (int y = height - 2; y >= 1; --y) {
+    slots.push_back({0, y, Dir::W});
+  }
+  return slots;
 }
 
-void MazeExitGenerator::generateExits(MazeGrid& grid, const MazeStrategyOptions& opts)
+void MazeExitGenerator::generate_exits(
+  MazeGrid & grid, Random & rng, const MazeStrategyOptions & options) const
 {
-    if (opts.num_random_exits > 0) {
-        generateRandomExits(grid, opts);
-    }
+  for (const Exit & exit : options.fixed_exits) {
+    grid.add_exit(exit.x, exit.y, exit.dir);
+  }
 
-    if (!opts.fixed_exits.empty()) {
-        generateFixedExits(grid, opts);
-    }
-}
+  if (options.num_random_exits <= 0) {
+    return;
+  }
+  // A fixed exit may already sit on one of the slots
+  std::vector<Exit> slots = random_exit_slots(grid);
+  const auto & taken = grid.exits();
+  std::erase_if(
+    slots, [&taken](const Exit & slot) {
+      return std::find(taken.begin(), taken.end(), slot) != taken.end();
+    });
 
-void MazeExitGenerator::generateRandomExits(MazeGrid& grid, const MazeStrategyOptions& opts)
-{
-    const int width = grid.width();
-    const int height = grid.height();
-    if (width <= 0 || height <= 0 || opts.num_random_exits <= 0) return;
-
-    const bool excludeCorners = true;
-
-    std::vector<std::tuple<int, int, Dir>> perimeter;
-    // top (y=0)
-    for (int x = 0; x < width; ++x) {
-        if (excludeCorners && (x == 0 || x == width - 1)) continue;
-        perimeter.emplace_back(x, 0, Dir::N);
-    }
-    // right (x=width-1), y=1..height-2
-    for (int y = 1; y <= height - 2; ++y)
-        perimeter.emplace_back(width - 1, y, Dir::E);
-
-    // bottom (y=height-1), x=width-1..0
-    for (int x = width - 1; x >= 0; --x) {
-        if (excludeCorners && (x == 0 || x == width - 1)) continue;
-        perimeter.emplace_back(x, height - 1, Dir::S);
-    }
-    // left (x=0), y=height-2..1
-    for (int y = height - 2; y >= 1; --y)
-        perimeter.emplace_back(0, y, Dir::W);
-
-    if (perimeter.empty()) return;
-
-    auto rng = RandomGenerator::generateRng(opts.seed);
-    std::shuffle(perimeter.begin(), perimeter.end(), rng);
-
-    int take = std::min<int>(opts.num_random_exits, (int)perimeter.size());
-    for (int i = 0; i < take; ++i) {
-        auto [x, y, d] = perimeter[i];
-        grid.carve(x, y, d);
-        grid.addExit(x, y, d);
-    }
-}
-
-void MazeExitGenerator::generateFixedExits(MazeGrid& grid, const MazeStrategyOptions& opts)
-{
-    const int width = grid.width();
-    const int height = grid.height();
-    for (auto [x, y, dir] : opts.fixed_exits) {
-        // Validate coordinates are on the perimeter
-        bool isOnPerimeter = (x == 0 || x == width - 1) || (y == 0 || y == height - 1);
-        if (!isOnPerimeter) {
-            // ignore invalid fixed exit
-            continue;
-        }
-        // ensure the chosen direction points outside (neighbor is out-of-bounds)
-        auto [nx, ny] = grid.neighbor(x, y, dir);
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-            // supplied direction doesn't point outside; ignore or optionally flip
-            continue;
-        }
-        grid.carve(x, y, dir);
-        grid.addExit(x, y, dir);
-    }
+  rng.shuffle(slots.begin(), slots.end());
+  const size_t count = std::min(slots.size(), static_cast<size_t>(options.num_random_exits));
+  for (size_t i = 0; i < count; ++i) {
+    grid.add_exit(slots[i].x, slots[i].y, slots[i].dir);
+  }
 }
 
 }  // namespace maze_gen
