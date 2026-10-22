@@ -1,0 +1,51 @@
+# Puente Gazebo <-> ROS para ros_gz_bridge (parametro config_file).
+# direction: GZ_TO_ROS = de Gazebo a ROS, ROS_TO_GZ = de ROS a Gazebo.
+# ros_topic_name y gz_topic_name pueden ser distintos: asi se renombra un topic
+# sin tocar el sensor (el lidar publica en "lidar" y en ROS sale como "scan")
+
+# Hora de la simulacion: los nodos con use_sim_time la usan en vez del reloj real
+- ros_topic_name: "clock"
+  gz_topic_name: "clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+# Ordenes de velocidad (teleop, nav2) hacia el plugin DiffDrive
+- ros_topic_name: "cmd_vel"
+  gz_topic_name: "cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+# Odometria y transformada odom -> base_link que publica DiffDrive
+- ros_topic_name: "odom"
+  gz_topic_name: "odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "tf"
+  gz_topic_name: "tf"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+# Posicion de las ruedas: robot_state_publisher la necesita para publicar sus
+# frames en TF; sin ella RViz pinta el RobotModel sin ruedas
+- ros_topic_name: "joint_states"
+  gz_topic_name: "joint_states"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "imu"
+  gz_topic_name: "imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+- ros_topic_name: "scan"
+  gz_topic_name: "lidar"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS

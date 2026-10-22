@@ -1,0 +1,236 @@
+<?xml version="1.0"?>
+<!-- Robot diferencial "fuga": caja como chasis, dos ruedas motrices laterales,
+     una rueda loca (caster) detras, un lidar arriba y un frame para la IMU.
+     Ejes segun REP 103: x hacia delante, y hacia la izquierda, z hacia arriba.
+     El prefijo xacro: son macros que se expanden a URDF plano al procesar el fichero -->
+<robot name="fuga" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Parametros del robot. Centralizarlos aqui permite cambiar dimensiones
+       sin tocar cada link; todas las unidades en SI (metros, kg) -->
+  <!-- Chasis: dimensiones de la caja (largo x ancho x alto) y masa -->
+  <xacro:property name="body_x" value="0.25"/>
+  <xacro:property name="body_y" value="0.16"/>
+  <xacro:property name="body_z" value="0.06"/>
+  <xacro:property name="body_m" value="2.0"/>
+  <!-- Ruedas motrices: radio, ancho y masa de cada una -->
+  <xacro:property name="wheel_r" value="0.04"/>
+  <xacro:property name="wheel_w" value="0.02"/>
+  <xacro:property name="wheel_m" value="0.2"/>
+  <xacro:property name="left_wheel" value="left_wheel"/>
+  <xacro:property name="right_wheel" value="right_wheel"/>
+
+  <!-- Distancia entre centros de rueda (track). Se calcula para que la cara interior
+       de cada rueda quede justo en el borde del chasis: centro en body_y/2 + wheel_w/2
+       a cada lado, asi que nunca se solapan aunque cambien las medidas.
+       Debe coincidir con el parametro del controlador diferencial -->
+  <xacro:property name="wheel_sep" value="${body_y + wheel_w}"/>
+  <!-- Radio de la esfera de la rueda loca: la mitad que la rueda motriz, para que
+       escale con ella y quepa bajo el chasis -->
+  <xacro:property name="caster_r" value="${wheel_r/2}"/>
+  <!-- Holgura entre la esfera de la rueda loca y el borde trasero del chasis,
+       para que no asome por detras y choque antes que el chasis -->
+  <xacro:property name="caster_margin" value="0.005"/>
+
+  <!-- Macro de inercia de un prisma rectangular macizo (formula estandar, ejes en
+       el centro de masas). Gazebo necesita masa e inercia realistas en cada link
+       dinamico; sin ellas el link se ignora o la simulacion se vuelve inestable -->
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial><mass value="${m}"/>
+      <inertia ixx="${m/12*(y*y+z*z)}" iyy="${m/12*(x*x+z*z)}" izz="${m/12*(x*x+y*y)}" ixy="0" ixz="0" iyz="0"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- Macro de una rueda motriz: link + joint. Se usa dos veces (izquierda y derecha)
+       para no duplicar el bloque. side: +1 izquierda (y positiva), -1 derecha -->
+  <xacro:macro name="wheel" params="name side">
+    <link name="${name}">
+      <!-- En URDF el cilindro tiene su eje en z; se gira pi/2 en roll para
+           tumbarlo y que su eje quede en y, que es el eje de giro de la rueda -->
+      <visual><origin rpy="${pi/2} 0 0"/><geometry><cylinder radius="${wheel_r}" length="${wheel_w}"/></geometry></visual>
+      <collision><origin rpy="${pi/2} 0 0"/><geometry><cylinder radius="${wheel_r}" length="${wheel_w}"/></geometry></collision>
+      <!-- Inercia de cilindro macizo: izz = m*r^2/2 respecto a su eje y
+           ixx = iyy = m*(3r^2+h^2)/12. Se aplica la misma rotacion que a la
+           geometria para que el eje z del tensor coincida con el eje del cilindro -->
+      <inertial><mass value="${wheel_m}"/><origin rpy="${pi/2} 0 0"/>
+        <inertia ixx="${wheel_m/12*(3*wheel_r**2+wheel_w**2)}" iyy="${wheel_m/12*(3*wheel_r**2+wheel_w**2)}" izz="${wheel_m*wheel_r**2/2}" ixy="0" ixz="0" iyz="0"/>
+      </inertial>
+    </link>
+    <!-- continuous: articulacion de giro sin limites, lo propio de una rueda.
+         Se coloca a la altura del centro del chasis (z=0) y desplazada en y a cada lado -->
+    <joint name="${name}_joint" type="continuous">
+      <parent link="base_link"/><child link="${name}"/>
+      <origin xyz="0 ${side*wheel_sep/2} 0"/>
+      <!-- Gira alrededor de y: velocidad positiva hace avanzar el robot en +x -->
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Link raiz del robot: el chasis. Su origen esta en el centro de la caja y es
+       el frame que usan odometria, navegacion y TF como referencia del robot -->
+  <link name="base_link">
+    <visual><geometry><box size="${body_x} ${body_y} ${body_z}"/></geometry></visual>
+    <!-- collision repite la geometria visual; con formas simples no hace falta
+         una malla de colision aparte -->
+    <collision><geometry><box size="${body_x} ${body_y} ${body_z}"/></geometry></collision>
+    <xacro:box_inertia m="${body_m}" x="${body_x}" y="${body_y}" z="${body_z}"/>
+  </link>
+
+  <!-- Instancias de la macro: rueda izquierda en +y, derecha en -y -->
+  <xacro:wheel name="${left_wheel}"  side="1"/>
+  <xacro:wheel name="${right_wheel}" side="-1"/>
+
+  <!-- Rueda loca: tercer punto de apoyo para que el robot no cabecee.
+       Se modela como esfera fija sin friccion en vez de una rueda giratoria
+       real: desliza por el suelo y el resultado es el mismo con menos joints -->
+  <link name="caster">
+    <visual><geometry><sphere radius="${caster_r}"/></geometry></visual>
+    <collision><geometry><sphere radius="${caster_r}"/></geometry></collision>
+    <!-- Masa e inercia pequenas: solo para que Gazebo acepte el link,
+         no influyen apreciablemente en la dinamica -->
+    <inertial><mass value="0.05"/><inertia ixx="1e-5" iyy="1e-5" izz="1e-5" ixy="0" ixz="0" iyz="0"/></inertial>
+  </link>
+  <!-- fixed: la esfera no tiene grados de libertad respecto al chasis.
+       x la pone detras: desde el borde trasero (-body_x/2) se mete hacia dentro
+       el radio de la esfera mas caster_margin, asi queda entera bajo el chasis.
+       z = caster_r - wheel_r hace que su punto mas bajo quede a -wheel_r, la misma
+       altura que el suelo bajo las ruedas, asi el robot queda horizontal -->
+  <joint name="caster_joint" type="fixed">
+    <parent link="base_link"/><child link="caster"/>
+    <origin xyz="${-(body_x/2 - caster_r - caster_margin)} 0 ${caster_r - wheel_r}"/>
+  </joint>
+  <!-- Propiedades especificas de Gazebo: coeficientes de friccion mu1/mu2 a 0
+       para que la esfera deslice y no frene ni desvie el giro del robot -->
+  <gazebo reference="caster"><mu1>0.0</mu1><mu2>0.0</mu2></gazebo>
+
+  <!-- Lidar: solo visual, sin collision ni inertial porque no participa en la
+       fisica; su funcion es dar un frame "lidar" donde montar el sensor -->
+  <link name="lidar"><visual><geometry><cylinder radius="0.03" length="0.04"/></geometry></visual></link>
+  <!-- Encima del chasis: body_z/2 llega a la tapa y +0.02 (media altura del
+       cilindro) apoya el lidar sobre ella. Montado alto y centrado para que el
+       chasis no tape el barrido de 360 grados -->
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/><child link="lidar"/><origin xyz="0 0 ${body_z/2 + 0.02}"/>
+  </joint>
+
+  <!-- Sensor lidar de Gazebo: un plano de rayos horizontal que publica un
+       LaserScan. gpu_lidar se calcula con el motor de render, asi que necesita
+       el sistema gz::sim::systems::Sensors en el mundo (lo anade maze_export).
+       Como en la IMU, el link lidar se fusiona con base_link al convertir a SDF;
+       el sensor conserva su posicion (0.05 m sobre el centro del chasis) y
+       gz_frame_id hace que los mensajes salgan con frame_id "lidar" -->
+  <gazebo reference="lidar">
+    <sensor name="lidar_sensor" type="gpu_lidar">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <visualize>true</visualize>
+      <topic>lidar</topic>
+      <gz_frame_id>lidar</gz_frame_id>
+      <lidar>
+        <!-- Vuelta completa con un rayo por grado: en el laberinto interesa ver
+             tambien las paredes laterales y las de detras, no solo delante -->
+        <scan><horizontal>
+          <samples>360</samples><resolution>1</resolution>
+          <min_angle>${-pi}</min_angle><max_angle>${pi}</max_angle>
+        </horizontal></scan>
+        <!-- min por encima del radio del cilindro (0.03) para no detectarse a si
+             mismo; max de sobra para celdas de 1 m -->
+        <range><min>0.08</min><max>10.0</max><resolution>0.01</resolution></range>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU: link vacio, solo un frame de referencia para las medidas del sensor.
+       Va en el centro de base_link para que las aceleraciones y velocidades
+       angulares que mida correspondan al cuerpo del robot sin brazo de palanca -->
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/><child link="imu_link"/><origin xyz="0 0 0"/>
+  </joint>
+  <!-- Sensor IMU de Gazebo: orientacion (cuaternion), velocidad angular y
+       aceleracion lineal en x, y, z. Necesita el sistema gz::sim::systems::Imu
+       en el mundo (lo anade maze_export al generar el SDF).
+       Al convertir a SDF, imu_link se fusiona con base_link por ser un joint
+       fixed y el sensor pasa a colgar de base_link; gz_frame_id fuerza que los
+       mensajes salgan con frame_id "imu_link", que es el frame que hay en TF -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>1</always_on>
+      <!-- 100 Hz: lo habitual para fusionar con la odometria (robot_localization);
+           a 1 Hz, como en el tutorial de gz, no sirve para estimar el movimiento -->
+      <update_rate>100</update_rate>
+      <visualize>true</visualize>
+      <topic>imu</topic>
+      <gz_frame_id>imu_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+  <!-- Teleoperacion con el teclado desde Gazebo, sin pasar por ROS. El widget
+       Key Publisher de la GUI (menu de plugins, arriba a la derecha) publica cada
+       tecla pulsada en /keyboard/keypress como gz.msgs.Int32 con el codigo de Qt.
+       TriggeredPublisher escucha ese topic y, si el codigo coincide, publica un
+       Twist fijo en /cmd_vel, el mismo topic que lee DiffDrive.
+       Key Publisher solo avisa al pulsar, no al soltar: el robot sigue con la
+       ultima velocidad hasta que se pulsa otra tecla, por eso hay tecla de parada -->
+  <xacro:property name="key_lin" value="0.2"/> <!-- m/s: en celdas de 1 m, 0.5 m/s es dificil de controlar -->
+  <xacro:property name="key_ang" value="1.0"/> <!-- rad/s: un giro de 90 grados en ~1.6 s -->
+  <xacro:macro name="key_cmd" params="key lin ang">
+    <plugin
+      filename="gz-sim-triggered-publisher-system"
+      name="gz::sim::systems::TriggeredPublisher">
+      <input type="gz.msgs.Int32" topic="/keyboard/keypress">
+        <match field="data">${key}</match>
+      </input>
+      <output type="gz.msgs.Twist" topic="/cmd_vel">
+        linear: {x: ${lin}}, angular: {z: ${ang}}
+      </output>
+    </plugin>
+  </xacro:macro>
+
+  <!-- Plugins de Gazebo (gz sim). En URDF tienen que ir dentro de <gazebo> sin
+       reference: al convertir a SDF se copian al <model> del robot -->
+  <gazebo>
+
+
+    <!-- DiffDrive: convierte los Twist de cmd_vel en velocidades de las ruedas y
+         publica la odometria. Usa los mismos wheel_sep y wheel_r que la geometria
+         para que la odometria calculada coincida con el movimiento real -->
+    <plugin
+      filename="gz-sim-diff-drive-system"
+      name="gz::sim::systems::DiffDrive">
+      <!-- Nombres de los joints que genera la macro wheel (name + "_joint") -->
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>${wheel_sep}</wheel_separation>
+      <wheel_radius>${wheel_r}</wheel_radius>
+      <!-- 30 Hz: suficiente para navegar; a 1 Hz la odometria va a saltos -->
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <!-- Por defecto publicaria en /model/fuga/odometry y /model/fuga/tf con
+           frames "fuga/odom" y "fuga/base_link"; se usan los nombres estandar de
+           ROS (REP 105) para que nav2 y RViz los encuentren sin remapear -->
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+    </plugin>
+
+    <!-- JointStatePublisher: publica la posicion de los joints moviles (las ruedas).
+         robot_state_publisher solo publica en TF los joints fixed por su cuenta;
+         los continuous necesitan /joint_states, y sin el las ruedas no aparecen en
+         TF. Se fija el topic a joint_states porque por defecto seria
+         /world/<mundo>/model/fuga/joint_state; hay que puentearlo a ROS con
+         ros_gz_bridge (gz.msgs.Model -> sensor_msgs/msg/JointState) -->
+    <plugin
+      filename="gz-sim-joint-state-publisher-system"
+      name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+
+    <!-- Flechas y espacio (codigos Qt::Key_*). Una instancia de TriggeredPublisher
+         por tecla: cada una solo admite un patron de entrada -->
+    <xacro:key_cmd key="16777235" lin="${key_lin}"  ang="0"/>          <!-- Arriba: avanza -->
+    <xacro:key_cmd key="16777237" lin="${-key_lin}" ang="0"/>          <!-- Abajo: retrocede -->
+    <xacro:key_cmd key="16777234" lin="0"           ang="${key_ang}"/> <!-- Izquierda: gira a la izquierda -->
+    <xacro:key_cmd key="16777236" lin="0"           ang="${-key_ang}"/><!-- Derecha: gira a la derecha -->
+    <xacro:key_cmd key="32"       lin="0"           ang="0"/>          <!-- Espacio: para -->
+  </gazebo>
+</robot>

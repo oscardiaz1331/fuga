@@ -1,0 +1,263 @@
+<sdf version='1.11'>
+  <model name='fuga'>
+    <link name='base_link'>
+      <inertial>
+        <pose>-0.0024390243902439029 0 -0.00048780487804878049 0 0 0</pose>
+        <mass>2.0499999999999998</mass>
+        <inertia>
+          <ixx>0.0048961788617886172</ixx>
+          <ixy>0</ixy>
+          <ixz>-9.7560975609756103e-05</ixz>
+          <iyy>0.011533983739837401</iyy>
+          <iyz>0</iyz>
+          <izz>0.01518113821138211</izz>
+        </inertia>
+      </inertial>
+      <collision name='base_link_collision'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.25 0.16 0.059999999999999998</size>
+          </box>
+        </geometry>
+      </collision>
+      <collision name='base_link_fixed_joint_lump__caster_collision_1'>
+        <pose>-0.099999999999999992 0 -0.02 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.02</radius>
+          </sphere>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode>
+              <mu>0</mu>
+              <mu2>0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+      <visual name='base_link_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.25 0.16 0.059999999999999998</size>
+          </box>
+        </geometry>
+      </visual>
+      <visual name='base_link_fixed_joint_lump__caster_visual_1'>
+        <pose>-0.099999999999999992 0 -0.02 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.02</radius>
+          </sphere>
+        </geometry>
+      </visual>
+      <visual name='base_link_fixed_joint_lump__lidar_visual_2'>
+        <pose>0 0 0.050000000000000003 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.040000000000000001</length>
+            <radius>0.029999999999999999</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+      <sensor name='imu_sensor' type='imu'>
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <visualize>true</visualize>
+        <topic>imu</topic>
+        <pose>0 0 0 0 0 0</pose>
+        <gz_frame_id>imu_link</gz_frame_id>
+        <imu/>
+      </sensor>
+      <sensor name='lidar_sensor' type='gpu_lidar'>
+        <always_on>true</always_on>
+        <update_rate>10</update_rate>
+        <visualize>true</visualize>
+        <topic>lidar</topic>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>360</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.1415926535897931</min_angle>
+              <max_angle>3.1415926535897931</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>0.080000000000000002</min>
+            <max>10</max>
+            <resolution>0.01</resolution>
+          </range>
+        </lidar>
+        <pose>0 0 0.050000000000000003 0 0 0</pose>
+        <gz_frame_id>lidar</gz_frame_id>
+      </sensor>
+    </link>
+    <joint name='left_wheel_joint' type='revolute'>
+      <pose relative_to='base_link'>0 0.089999999999999997 0 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>left_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-inf</lower>
+          <upper>inf</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='left_wheel'>
+      <pose relative_to='left_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <mass>0.20000000000000001</mass>
+        <inertia>
+          <ixx>8.6666666666666682e-05</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>8.6666666666666682e-05</iyy>
+          <iyz>0</iyz>
+          <izz>0.00016000000000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='left_wheel_collision'>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='left_wheel_visual'>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+    </link>
+    <joint name='right_wheel_joint' type='revolute'>
+      <pose relative_to='base_link'>0 -0.089999999999999997 0 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>right_wheel</child>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-inf</lower>
+          <upper>inf</upper>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name='right_wheel'>
+      <pose relative_to='right_wheel_joint'>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <mass>0.20000000000000001</mass>
+        <inertia>
+          <ixx>8.6666666666666682e-05</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>8.6666666666666682e-05</iyy>
+          <iyz>0</iyz>
+          <izz>0.00016000000000000001</izz>
+        </inertia>
+      </inertial>
+      <collision name='right_wheel_collision'>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </collision>
+      <visual name='right_wheel_visual'>
+        <pose>0 0 0 1.5707963267948959 0 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.02</length>
+            <radius>0.040000000000000001</radius>
+          </cylinder>
+        </geometry>
+      </visual>
+    </link>
+    <plugin name='gz::sim::systems::DiffDrive' filename='gz-sim-diff-drive-system'>
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.18</wheel_separation>
+      <wheel_radius>0.04</wheel_radius>
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_link</child_frame_id>
+    </plugin>
+    <plugin name='gz::sim::systems::JointStatePublisher' filename='gz-sim-joint-state-publisher-system'>
+      <topic>joint_states</topic>
+    </plugin>
+    <plugin name='gz::sim::systems::TriggeredPublisher' filename='gz-sim-triggered-publisher-system'>
+      <input topic='/keyboard/keypress' type='gz.msgs.Int32'>
+        <match field='data'>16777235</match>
+      </input>
+      <output topic='/cmd_vel' type='gz.msgs.Twist'>linear: {x: 0.2}, angular: {z: 0}</output>
+    </plugin>
+    <plugin name='gz::sim::systems::TriggeredPublisher' filename='gz-sim-triggered-publisher-system'>
+      <input topic='/keyboard/keypress' type='gz.msgs.Int32'>
+        <match field='data'>16777237</match>
+      </input>
+      <output topic='/cmd_vel' type='gz.msgs.Twist'>linear: {x: -0.2}, angular: {z: 0}</output>
+    </plugin>
+    <plugin name='gz::sim::systems::TriggeredPublisher' filename='gz-sim-triggered-publisher-system'>
+      <input topic='/keyboard/keypress' type='gz.msgs.Int32'>
+        <match field='data'>16777234</match>
+      </input>
+      <output topic='/cmd_vel' type='gz.msgs.Twist'>linear: {x: 0}, angular: {z: 1.0}</output>
+    </plugin>
+    <plugin name='gz::sim::systems::TriggeredPublisher' filename='gz-sim-triggered-publisher-system'>
+      <input topic='/keyboard/keypress' type='gz.msgs.Int32'>
+        <match field='data'>16777236</match>
+      </input>
+      <output topic='/cmd_vel' type='gz.msgs.Twist'>linear: {x: 0}, angular: {z: -1.0}</output>
+    </plugin>
+    <plugin name='gz::sim::systems::TriggeredPublisher' filename='gz-sim-triggered-publisher-system'>
+      <input topic='/keyboard/keypress' type='gz.msgs.Int32'>
+        <match field='data'>32</match>
+      </input>
+      <output topic='/cmd_vel' type='gz.msgs.Twist'>linear: {x: 0}, angular: {z: 0}</output>
+    </plugin>
+    <frame name='caster_joint' attached_to='base_link'>
+      <pose>-0.099999999999999992 0 -0.02 0 0 0</pose>
+    </frame>
+    <frame name='caster' attached_to='caster_joint'>
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+    <frame name='imu_joint' attached_to='base_link'>
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+    <frame name='imu_link' attached_to='imu_joint'>
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+    <frame name='lidar_joint' attached_to='base_link'>
+      <pose>0 0 0.050000000000000003 0 0 0</pose>
+    </frame>
+    <frame name='lidar' attached_to='lidar_joint'>
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>
