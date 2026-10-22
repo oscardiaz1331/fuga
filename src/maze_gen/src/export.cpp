@@ -107,9 +107,34 @@ void maze_gen::MazeExporter::write_sdf(
         "name=\"gz::sim::systems::UserCommands\"/>\n"
         "<plugin filename=\"gz-sim-scene-broadcaster-system\" "
         "name=\"gz::sim::systems::SceneBroadcaster\"/>\n"
+        // Sensores del robot: Sensors genera los que necesitan render (lidar,
+        // camaras) y Imu los de IMU; sin ellos los sensores no publican nada
+        "<plugin filename=\"gz-sim-sensors-system\" "
+        "name=\"gz::sim::systems::Sensors\">"
+        "<render_engine>ogre2</render_engine></plugin>\n"
+        "<plugin filename=\"gz-sim-imu-system\" "
+        "name=\"gz::sim::systems::Imu\"/>\n"
         "<light type=\"directional\" name=\"sun\"><pose>0 0 10 0 0 0</pose>"
         "<direction>-0.5 0.1 -0.9</direction><diffuse>1 1 1 "
-        "1</diffuse></light>\n"
+        "1</diffuse></light>\n";
+
+  // Suelo: sin el, todo lo que no es static (el robot) cae al vacio. La
+  // colision de un plane es infinita; size solo da el tamano visual, que cubre
+  // el laberinto con 1 m de margen por cada lado
+  const double gx = maze_.width() * kCell, gy = maze_.height() * kCell;
+  os << "<model name=\"ground_plane\"><static>true</static>"
+     << "<pose>" << gx / 2 << ' ' << gy / 2 << " 0 0 0 0</pose>"
+     << "<link name=\"link\">";
+  for (const char *kind : {"collision", "visual"}) {
+    os << "<" << kind << " name=\"ground_" << kind << "\"><geometry><plane>"
+       << "<normal>0 0 1</normal><size>" << gx + 2 << ' ' << gy + 2
+       << "</size></plane></geometry>"
+       << (kind[0] == 'v' ? "<material><ambient>0.8 0.8 0.8 1</ambient>"
+                            "<diffuse>0.8 0.8 0.8 1</diffuse></material>"
+                          : "")
+       << "</" << kind << ">";
+  }
+  os << "</link></model>\n"
         "<model name=\"maze\"><static>true</static><link name=\"walls\">\n";
 
   int i = 0;

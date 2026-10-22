@@ -70,8 +70,11 @@ TEST(MazeExporter, KnownMazeProducesExactlyTheExpectedWalls)
   const auto sdf = export_known_maze().sdf;
 
   // One box per merged wall, each one with a collision and a visual
-  EXPECT_EQ(count(sdf, "<collision"), 5u);
-  EXPECT_EQ(count(sdf, "<visual"), 5u);
+  EXPECT_EQ(count(sdf, "<collision name=\"w"), 5u);
+  EXPECT_EQ(count(sdf, "<visual name=\"w"), 5u);
+  // And a ground plane under the maze, so the robot does not fall through
+  EXPECT_NE(sdf.find("<collision name=\"ground_collision\"><geometry><plane>"),
+    std::string::npos);
 
   // Top and right sides, and the left side, in one piece each
   EXPECT_NE(sdf.find("<pose>1 0 0.25 0 0 0</pose><geometry><box><size>2.1 0.1 0.5"),
