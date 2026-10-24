@@ -225,6 +225,27 @@
       <topic>joint_states</topic>
     </plugin>
 
+         <!-- PosePublisher: publica la pose real del robot en el mundo (ground truth),
+         sin la deriva de la odometria de DiffDrive. La usa el juez para medir
+         tiempo y longitud del camino. Solo la pose del modelo: con
+         use_pose_vector_msg=false cada pose sale como un gz.msgs.Pose suelto en
+         el mismo topic, asi que si tambien se publicaran los links se mezclarian.
+         Topic: /model/fuga/pose (el nombre sale de entity_name en spawn.launch.py) -->
+    <plugin
+      filename="gz-sim-pose-publisher-system"
+      name="gz::sim::systems::PosePublisher">
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>false</publish_link_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <!-- 50 Hz: a 0.3 m/s son 6 mm entre muestras, de sobra para la longitud -->
+      <update_frequency>50</update_frequency>
+    </plugin>
+
+
     <!-- Flechas y espacio (codigos Qt::Key_*). Una instancia de TriggeredPublisher
          por tecla: cada una solo admite un patron de entrada -->
     <xacro:key_cmd key="16777235" lin="${key_lin}"  ang="0"/>          <!-- Arriba: avanza -->
