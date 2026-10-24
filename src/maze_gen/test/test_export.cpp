@@ -112,3 +112,55 @@ TEST(MazeExporter, KnownMazeMetaPointsToTheExit)
   EXPECT_NE(meta.find("start: [0.5, 0.5]"), std::string::npos);
   EXPECT_NE(meta.find("exit: [0.5, 1.5]"), std::string::npos);
 }
+
+TEST(MazeExporter, KnownMazeMetaDescribesTheMaze)
+{
+  const auto meta = export_known_maze().meta;
+
+  EXPECT_NE(meta.find("width: 2"), std::string::npos);
+  EXPECT_NE(meta.find("height: 2"), std::string::npos);
+  EXPECT_NE(meta.find("wall_thickness: 0.1"), std::string::npos);
+  EXPECT_NE(meta.find("bounds: [0, 0, 2, 2]"), std::string::npos);
+  // Loaded, not generated: there is no seed or difficulty to report
+  EXPECT_EQ(meta.find("seed:"), std::string::npos);
+  EXPECT_EQ(meta.find("difficulty:"), std::string::npos);
+}
+
+TEST(MazeExporter, KnownMazeMetaHasTheShortestPathToTheExit)
+{
+  const auto meta = export_known_maze().meta;
+
+  // A -> B -> D -> C is 3 cells, plus half a cell from the centre of C to the gap
+  EXPECT_NE(meta.find("  - {cell: [0, 1], side: S, door: [0.5, 2], distance: 3.5}"),
+    std::string::npos);
+  EXPECT_NE(meta.find("shortest_path: 3.5"), std::string::npos);
+}
+
+TEST(MazeExporter, UnreachableExitHasNoDistance)
+{
+  // Two cells with the wall between them still up: the exit of B can't be reached from A
+  maze_gen::MazeGrid grid(2, 1);
+  grid.add_exit(1, 0, maze_gen::Dir::E);
+  std::ostringstream meta;
+  maze_gen::MazeExporter::Outputs out;
+  out.meta = &meta;
+  maze_gen::MazeExporter(std::move(grid)).export_maze(out);
+
+  EXPECT_NE(meta.str().find("  - {cell: [1, 0], side: E, door: [2, 0.5], distance: null}"),
+    std::string::npos);
+  EXPECT_NE(meta.str().find("shortest_path: null"), std::string::npos);
+}
+
+TEST(MazeExporter, GeneratedMazeMetaHasSeedAndDifficulty)
+{
+  std::ostringstream meta;
+  maze_gen::MazeExporter::Outputs out;
+  out.meta = &meta;
+  maze_gen::MazeExporter(5, 5, 42, 7).export_maze(out);
+
+  EXPECT_NE(meta.str().find("seed: 42\n"), std::string::npos);
+  EXPECT_NE(meta.str().find("difficulty: 7\n"), std::string::npos);
+  // A generated maze is connected: its exit can always be reached
+  EXPECT_EQ(meta.str().find("distance: null"), std::string::npos);
+  EXPECT_EQ(meta.str().find("shortest_path: null"), std::string::npos);
+}

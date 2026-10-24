@@ -49,3 +49,11 @@
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
+
+# Pose real del robot en el mundo (PosePublisher), para el juez.
+# PoseStamped para tener la hora de simulacion en header.stamp
+- ros_topic_name: "ground_truth/pose"
+  gz_topic_name: "/model/fuga/pose"
+  ros_type_name: "geometry_msgs/msg/PoseStamped"
+  gz_type_name: "gz.msgs.Pose"
+  direction: GZ_TO_ROS

@@ -9,15 +9,36 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     folder = LaunchConfiguration('folder')
+    width = LaunchConfiguration('width')
+    height = LaunchConfiguration('height')
+    difficulty = LaunchConfiguration('difficulty')
+    seed = LaunchConfiguration('seed')
 
-    declare_folder = DeclareLaunchArgument(
-        'folder', default_value='/tmp/maze',
-        description='Carpeta donde maze2world escribe maze.sdf, maze.pgm, ...')
+    declare_args = [
+        DeclareLaunchArgument(
+            'folder', default_value='/tmp/maze',
+            description='Carpeta donde maze2world escribe maze.sdf, maze.pgm, ...'),
+        DeclareLaunchArgument('width', default_value='10',
+                              description='Ancho del laberinto, en celdas'),
+        DeclareLaunchArgument('height', default_value='10',
+                              description='Alto del laberinto, en celdas'),
+        DeclareLaunchArgument(
+            'difficulty', default_value='10',
+            description='0 a 10. Con 10 es perfecto; cuanto mas bajo, mas bucles e islas'),
+        DeclareLaunchArgument(
+            'seed', default_value='0',
+            description='0 = al azar. Con la seed de meta.yaml se repite el mismo '
+                        'laberinto, para comparar algoritmos en igualdad'),
+    ]
 
-    # 1) Ejecuta maze2world con esa carpeta (genera el mundo y termina)
+    # 1) Ejecuta maze2world con esos parametros (genera el mundo y termina)
     generate_world = ExecuteProcess(
-        cmd=['ros2', 'run', 'maze_export', 'maze2world',
-             '--ros-args', '-p', ['folder:=', folder]],
+        cmd=['ros2', 'run', 'maze_export', 'maze2world', '--ros-args',
+             '-p', ['folder:=', folder],
+             '-p', ['width:=', width],
+             '-p', ['height:=', height],
+             '-p', ['difficulty:=', difficulty],
+             '-p', ['seed:=', seed]],
         output='screen')
 
     # 2) Cuando termina, lanza Gazebo con el mundo de esa carpeta
@@ -33,7 +54,7 @@ def generate_launch_description():
         OnProcessExit(target_action=generate_world, on_exit=[gz_sim]))
 
     return LaunchDescription([
-        declare_folder,
+        *declare_args,
         generate_world,
         start_sim_after_generation,
     ])

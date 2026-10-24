@@ -23,8 +23,10 @@ namespace maze_gen
                 std::string pgm_name = "maze.pgm"; // como lo referencia map_yaml, relativo a el
             };
 
-            // Sin semilla se elige una al azar, y queda registrada en meta.yaml
-            MazeExporter(const int width, const int height, std::optional<uint64_t> seed = std::nullopt);
+            // Sin semilla se elige una al azar, y queda registrada en meta.yaml.
+            // difficulty de 0 a 10: con 10 el laberinto es perfecto; por debajo hay bucles e islas
+            MazeExporter(const int width, const int height, std::optional<uint64_t> seed = std::nullopt,
+                         int difficulty = 10);
             // Exporta un laberinto ya hecho (p. ej. cargado de fichero): no se genera ni hay semilla
             explicit MazeExporter(maze_gen::MazeGrid grid) : maze_(std::move(grid)), generate_(false) {}
             void export_maze(const Outputs& out);
@@ -42,12 +44,20 @@ namespace maze_gen
           static constexpr double kOriginX = 0.0, kOriginY = 0.0;
 
         std::vector<maze_gen::MazeExporter::Wall> extract_walls(const maze_gen::MazeGrid& maze) const;
+        // Celda donde aparece el robot (spawn.launch.py usa su centro por defecto)
+        static constexpr int kStartX = 0, kStartY = 0;
+
         // Centro de una celda en coordenadas de mundo (m)
         static Point cell_center(int x, int y);
+        // Centro del hueco que abre una salida en el muro exterior (m)
+        static Point door(const maze_gen::Exit& exit);
+        // BFS: pasos desde (x, y) hasta cada celda, en el orden de cell_index.
+        // -1 en las celdas a las que no se puede llegar
+        static std::vector<int> distances_from(const maze_gen::MazeGrid& maze, int x, int y);
         void write_sdf(std::ostream& os, const std::vector<maze_gen::MazeExporter::Wall>& walls) const;
         void write_pgm(std::ostream& os, const std::vector<maze_gen::MazeExporter::Wall>& walls) const;
         void write_map_yaml(std::ostream& os, const std::string& pgm_name) const;
-        void write_meta(std::ostream& os, Point start, Point exit) const;
+        void write_meta(std::ostream& os) const;
     };
     
     class MazeExporterNode : public rclcpp::Node

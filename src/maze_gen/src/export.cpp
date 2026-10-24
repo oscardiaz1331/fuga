@@ -6,17 +6,23 @@
 #include <fstream>
 #include <iostream>
 #include <locale>
+#include <queue>
 #include <random>
+#include <sstream>
 #include <utility>
 
 maze_gen::MazeExporter::MazeExporter(const int width, const int height,
-                                     std::optional<uint64_t> seed)
+                                     std::optional<uint64_t> seed,
+                                     int difficulty)
     : generator_(), options_(), maze_(width, height) {
   if (!seed) {
     std::random_device rd;
-    seed = (static_cast<uint64_t>(rd()) << 32) | rd();
+    // 63 bits: cabe en un parametro int64 de ROS, asi que la semilla de
+    // meta.yaml se puede pasar con seed:= para repetir el mismo laberinto
+    seed = ((static_cast<uint64_t>(rd()) << 32) | rd()) >> 1;
   }
   options_.seed = seed;
+  options_.difficulty = difficulty;
 }
 
 maze_gen::MazeExporter::Point maze_gen::MazeExporter::cell_center(int x,
@@ -39,14 +45,39 @@ void maze_gen::MazeExporter::export_maze(const Outputs &out) {
     write_pgm(*out.pgm, walls);
   if (out.map_yaml)
     write_map_yaml(*out.map_yaml, out.pgm_name);
-  if (out.meta) {
-    const Point start = cell_center(0, 0);
-    const Point exit =
-        maze_.exits().empty()
-            ? start
-            : cell_center(maze_.exits().front().x, maze_.exits().front().y);
-    write_meta(*out.meta, start, exit);
+  if (out.meta)
+    write_meta(*out.meta);
+}
+
+maze_gen::MazeExporter::Point
+maze_gen::MazeExporter::door(const maze_gen::Exit &exit) {
+  // A medio camino entre la celda y la de fuera, que esta al otro lado del muro
+  const auto [nx, ny] = maze_gen::MazeGrid::neighbor(exit.x, exit.y, exit.dir);
+  const Point inside = cell_center(exit.x, exit.y);
+  const Point outside = cell_center(nx, ny);
+  return {(inside.x + outside.x) / 2, (inside.y + outside.y) / 2};
+}
+
+std::vector<int>
+maze_gen::MazeExporter::distances_from(const maze_gen::MazeGrid &maze, int x0,
+                                       int y0) {
+  std::vector<int> steps(maze.cell_count(), -1);
+  std::queue<std::pair<int, int>> pending;
+  steps[maze.cell_index(x0, y0)] = 0;
+  pending.push({x0, y0});
+  while (!pending.empty()) {
+    const auto [x, y] = pending.front();
+    pending.pop();
+    const int next = steps[maze.cell_index(x, y)] + 1;
+    for (const maze_gen::Neighbor &n : maze.neighbors(x, y)) {
+      int &s = steps[maze.cell_index(n.x, n.y)];
+      if (s == -1 && !maze.has_wall(x, y, n.dir)) {
+        s = next;
+        pending.push({n.x, n.y});
+      }
+    }
   }
+  return steps;
 }
 
 // Cada muro interior lo comparten dos celdas, asi que se mira una sola vez por
@@ -206,19 +237,87 @@ void maze_gen::MazeExporter::write_map_yaml(std::ostream &os,
      << "\nnegate: 0\noccupied_thresh: 0.65\nfree_thresh: 0.25\n";
 }
 
-void maze_gen::MazeExporter::write_meta(std::ostream &os, Point start,
-                                        Point exit) const {
+// Lo que necesita quien evalua una ejecucion: donde empieza el robot, que
+// rectangulo ocupa el laberinto, por donde se sale y cuanto mide el camino
+// mas corto
+void maze_gen::MazeExporter::write_meta(std::ostream &os) const {
+  const auto point = [](Point p) {
+    std::ostringstream s;
+    s.imbue(std::locale::classic());
+    s << '[' << p.x << ", " << p.y << ']';
+    return s.str();
+  };
+  const auto side = [](maze_gen::Dir d) {
+    switch (d) {
+    case maze_gen::Dir::N: return 'N';
+    case maze_gen::Dir::E: return 'E';
+    case maze_gen::Dir::S: return 'S';
+    case maze_gen::Dir::W: return 'W';
+    }
+    return '?';
+  };
+
+  // Solo tienen sentido si el laberinto se ha generado aqui
   if (options_.seed)
     os << "seed: " << *options_.seed << '\n';
-  os << "cell: " << kCell << "\nstart: ["
-     << start.x << ", " << start.y << "]"
-     << "\nexit: [" << exit.x << ", " << exit.y << "]\n";
+  if (generate_)
+    os << "difficulty: " << options_.difficulty << '\n';
+
+  const Point start = cell_center(kStartX, kStartY);
+  os << "width: " << maze_.width() << "  # celdas\n"
+     << "height: " << maze_.height() << "  # celdas\n"
+     << "cell: " << kCell << "\n"
+     << "wall_thickness: " << T << "\n"
+     << "# Rectangulo [x_min, y_min, x_max, y_max] (m) de los ejes de los muros\n"
+     << "# exteriores; cada muro sobresale wall_thickness / 2 por fuera\n"
+     << "bounds: [0, 0, " << maze_.width() * kCell << ", "
+     << maze_.height() * kCell << "]\n"
+     << "start: " << point(start) << '\n';
+
+  const auto &exits = maze_.exits();
+  // Primera salida, centro de su celda. Sin salidas, el inicio
+  os << "exit: "
+     << point(exits.empty() ? start
+                            : cell_center(exits.front().x, exits.front().y))
+     << '\n';
+
+  // Camino por los centros de las celdas desde el de start hasta el hueco de
+  // la salida: los pasos entre celdas mas la media celda que cruza el hueco
+  const std::vector<int> steps = distances_from(maze_, kStartX, kStartY);
+  std::optional<double> shortest;
+  os << "# side: lado de la rejilla (N = y - 1, S = y + 1). door: centro del\n"
+     << "# hueco en el muro exterior (m). distance: camino mas corto desde start\n"
+     << "# hasta door por los centros de las celdas (m), null si no se llega\n"
+     << "exits:" << (exits.empty() ? " []" : "") << '\n';
+  for (const maze_gen::Exit &e : exits) {
+    os << "  - {cell: [" << e.x << ", " << e.y << "], side: " << side(e.dir)
+       << ", door: " << point(door(e)) << ", distance: ";
+    const int s = steps[maze_.cell_index(e.x, e.y)];
+    if (s < 0) {
+      os << "null";
+    } else {
+      const double distance = (s + 0.5) * kCell;
+      os << distance;
+      shortest = std::min(shortest.value_or(distance), distance);
+    }
+    os << "}\n";
+  }
+  os << "# Minimo de distance entre todas las salidas (m)\n"
+     << "shortest_path: ";
+  if (shortest)
+    os << *shortest;
+  else
+    os << "null";
+  os << '\n';
 }
 
 maze_gen::MazeExporterNode::MazeExporterNode() : Node("maze_exporter") {
   const int width = this->declare_parameter("width", 10);
   const int height = this->declare_parameter("height", 10);
-  const int seed = this->declare_parameter("seed", int64_t{0});
+  // 0: una al azar. int64_t: con int las semillas grandes se truncarian
+  const int64_t seed = this->declare_parameter("seed", int64_t{0});
+  // 0 a 10: por debajo de 10 se abren callejones, lo que crea bucles e islas
+  const int difficulty = this->declare_parameter("difficulty", 10);
   const auto now = std::chrono::system_clock::now();
   const std::string date = std::to_string(std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
   const std::string date_str = "maze_" + date;
@@ -230,7 +329,8 @@ maze_gen::MazeExporterNode::MazeExporterNode() : Node("maze_exporter") {
   exporter_ = std::make_unique<maze_gen::MazeExporter>(
       width, height,
       seed == 0 ? std::nullopt
-                : std::make_optional(static_cast<uint64_t>(seed)));
+                : std::make_optional(static_cast<uint64_t>(seed)),
+      difficulty);
   export_maze();
 }
 
