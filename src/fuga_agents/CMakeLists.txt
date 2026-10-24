@@ -16,10 +16,11 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
-add_executable(fuga_agents src/main.cpp src/wall_follower.cpp)
+add_executable(fuga_agents src/main.cpp src/wall_following_agent.cpp src/wall_follower.cpp src/pledge.cpp)
 target_include_directories(fuga_agents PUBLIC include)
-target_link_libraries(fuga_agents PUBLIC rclcpp::rclcpp sensor_msgs::sensor_msgs geometry_msgs::geometry_msgs)
+target_link_libraries(fuga_agents PUBLIC rclcpp::rclcpp sensor_msgs::sensor_msgs geometry_msgs::geometry_msgs nav_msgs::nav_msgs)
 
 install(TARGETS fuga_agents RUNTIME DESTINATION lib/${PROJECT_NAME})
 
