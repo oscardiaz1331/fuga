@@ -11,6 +11,7 @@ __pycache__/
 .vscode/
 .clangd
 compile_commands.json
+.cache
 
 # Salida de la demo (maze_gen_demo)
 data/

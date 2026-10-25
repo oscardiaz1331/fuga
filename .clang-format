@@ -1,0 +1,42 @@
+# Estilo de ROS 2 para clang-format (lo usa clangd al formatear en VS Code).
+# Base: el .clang-format oficial de ament_clang_format (ament_lint, rama jazzy).
+# Lo que comprueba colcon test es ament_uncrustify, no esto: los ajustes de
+# abajo acercan clang-format a uncrustify, pero no del todo (ver knowledge.md)
+---
+Language: Cpp
+BasedOnStyle: Google
+
+AccessModifierOffset: -2
+AlignAfterOpenBracket: AlwaysBreak
+BraceWrapping:
+  AfterClass: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterEnum: true
+BreakBeforeBraces: Custom
+ColumnLimit: 100
+ConstructorInitializerIndentWidth: 0
+ContinuationIndentWidth: 2
+DerivePointerAlignment: false
+PointerAlignment: Middle
+ReflowComments: false
+
+# Anadidos para coincidir con uncrustify
+# double total() const {return total_;}: uncrustify no quiere espacios dentro
+# de las llaves y clang-format no sabe quitarlos, asi que mejor en varias lineas
+AllowShortFunctionsOnASingleLine: Empty
+# explicit Judge(...)
+# : config_(config), path_(config.min_step) {}
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLineOnly
+# a = b +
+#   c;      (2 espacios, sin alinear con b)
+AlignOperands: DontAlign
+# case X:
+#   {
+#     ...
+IndentCaseBlocks: true
+# template<typename T>
+SpaceAfterTemplateKeyword: false
+...
