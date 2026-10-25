@@ -5,11 +5,13 @@
 
 #include "fuga_agents/wall_following_agent.hpp"
 
-namespace fuga_agents {
+namespace fuga_agents
+{
 class WallFollower : public WallFollowingAgent {
 public:
   WallFollower();
-  private:
+
+private:
   geometry_msgs::msg::Twist
   decide(const sensor_msgs::msg::LaserScan::SharedPtr msg);
 };

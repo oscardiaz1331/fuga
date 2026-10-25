@@ -2,10 +2,12 @@
 
 #include "rclcpp/node.hpp"
 
-namespace fuga_agents {
+namespace fuga_agents
+{
 class FugaAgent : public rclcpp::Node {
-    protected: 
-    FugaAgent(const std::string &name) : rclcpp::Node(name) {}
+protected:
+  FugaAgent(const std::string & name)
+  : rclcpp::Node(name) {}
 };
 
 } // namespace fuga_agents

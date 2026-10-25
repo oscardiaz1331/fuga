@@ -10,16 +10,17 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 
-namespace fuga_agents {
+namespace fuga_agents
+{
 class WallFollowingAgent : public FugaAgent {
 protected:
-WallFollowingAgent(const std::string &name);
+  WallFollowingAgent(const std::string & name);
 
   // ---- Parameter names: the only place where they are written ----
   static constexpr std::string_view kSide = "side"; // kSideRight | kSideLeft
   static constexpr std::string_view kVelocity = "velocity";
   static constexpr std::string_view kCornerVelocityRatio =
-      "corner_velocity_ratio";
+    "corner_velocity_ratio";
   static constexpr std::string_view kKp = "kp";
   static constexpr std::string_view kKd = "kd";
   static constexpr std::string_view kTurnSpeed = "turn_speed";
@@ -39,7 +40,8 @@ WallFollowingAgent(const std::string &name);
   // FNV-1a. C++ can't switch on strings, so we switch on the hash of the
   // name. Two names with the same hash would be a duplicate case label,
   // which is a compile error, so collisions between our names are caught.
-  static constexpr std::uint64_t hash(std::string_view s) {
+  static constexpr std::uint64_t hash(std::string_view s)
+  {
     std::uint64_t h = 14695981039346656037ull;
     for (const char c : s) {
       h ^= static_cast<unsigned char>(c);
@@ -50,7 +52,8 @@ WallFollowingAgent(const std::string &name);
 
   // Values as set through ROS parameters. Angles in rad, distances in m,
   // speeds in m/s and rad/s, time in s.
-  struct Params {
+  struct Params
+  {
     std::string side;
     float velocity;
     float corner_velocity_ratio; // Forward speed around outer corners
@@ -73,14 +76,16 @@ WallFollowingAgent(const std::string &name);
   };
 
   // Angular range of laser rays (rad)
-  struct Window {
+  struct Window
+  {
     float start;
     float end;
   };
 
   // Everything computed from Params. Recomputed only when a parameter
   // changes, so decide() never repeats this work.
-  struct Derived {
+  struct Derived
+  {
     // Sign of the followed wall's y in base_link: +1 left, -1 right.
     // Rotating towards the wall is +side_sign, away from it is -side_sign.
     float side_sign;
@@ -95,20 +100,22 @@ WallFollowingAgent(const std::string &name);
   };
 
   std::vector<rclcpp::Parameter> declare_params();
-  static void set_field(Params &params, const rclcpp::Parameter &param);
-  static std::string validate(const Params &params); // Empty if valid
-  static Derived derive(const Params &params);
+  static void set_field(Params & params, const rclcpp::Parameter & param);
+  static std::string validate(const Params & params); // Empty if valid
+  static Derived derive(const Params & params);
 
   // Rays of the scan inside the window, without copying them
-  static std::span<const float> rays(const sensor_msgs::msg::LaserScan &scan,
-                                     const Window &window);
+  static std::span<const float> rays(
+    const sensor_msgs::msg::LaserScan & scan,
+    const Window & window);
   // True if the median of the finite distances is below the threshold
-  static bool is_wall_detected(std::span<const float> distances,
-                               float distance_threshold);
+  static bool is_wall_detected(
+    std::span<const float> distances,
+    float distance_threshold);
   static float median(std::span<const float> distances);
 
   // Wall in front closer than front_threshold, across the robot's width
-  bool front_wall_detected(const sensor_msgs::msg::LaserScan &scan) const;
+  bool front_wall_detected(const sensor_msgs::msg::LaserScan & scan) const;
 
   geometry_msgs::msg::Twist
   follow_wall(const sensor_msgs::msg::LaserScan::SharedPtr msg);
@@ -121,9 +128,9 @@ WallFollowingAgent(const std::string &name);
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
-      on_set_handle_;
+    on_set_handle_;
   rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr
-      post_set_handle_;
+    post_set_handle_;
 
   std::unique_ptr<rclcpp::Time> first_time_exited_detected_;
   bool exited_ = false; // Flag to indicate if the exit has been detected
