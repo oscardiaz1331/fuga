@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <sstream>
+#include <stdexcept>
 #include <string>
 
 #include "maze_gen/export.hpp"
@@ -134,6 +135,32 @@ TEST(MazeExporter, KnownMazeMetaHasTheShortestPathToTheExit)
   EXPECT_NE(meta.find("  - {cell: [0, 1], side: S, door: [0.5, 2], distance: 3.5}"),
     std::string::npos);
   EXPECT_NE(meta.find("shortest_path: 3.5"), std::string::npos);
+}
+
+TEST(MazeExporter, StartCellSetsStartAndDistances)
+{
+  std::ostringstream meta;
+  maze_gen::MazeExporter::Outputs out;
+  out.meta = &meta;
+  maze_gen::MazeExporter exporter(known_maze());
+  exporter.set_start(1, 1);  // D
+  exporter.export_maze(out);
+
+  EXPECT_NE(meta.str().find("start: [1.5, 1.5]"), std::string::npos);
+  // D -> C is 1 cell, plus half a cell to the gap
+  EXPECT_NE(meta.str().find("  - {cell: [0, 1], side: S, door: [0.5, 2], distance: 1.5}"),
+    std::string::npos);
+  EXPECT_NE(meta.str().find("shortest_path: 1.5"), std::string::npos);
+}
+
+TEST(MazeExporter, StartOutsideTheGridIsRejected)
+{
+  maze_gen::MazeExporter exporter(known_maze());
+
+  EXPECT_THROW(exporter.set_start(2, 0), std::out_of_range);
+  EXPECT_THROW(exporter.set_start(0, 2), std::out_of_range);
+  EXPECT_THROW(exporter.set_start(-1, 0), std::out_of_range);
+  EXPECT_THROW(exporter.set_start(0, -1), std::out_of_range);
 }
 
 TEST(MazeExporter, UnreachableExitHasNoDistance)
