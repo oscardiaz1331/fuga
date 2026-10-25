@@ -1,8 +1,13 @@
+import re
+import subprocess
+import time
+
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
-                            RegisterEventHandler, Shutdown)
+                            OpaqueFunction, RegisterEventHandler, Shutdown)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
+import launch.logging
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (LaunchConfiguration, PathJoinSubstitution,
                                   PythonExpression)
@@ -26,6 +31,44 @@ def is_create(action):
     spawn.launch.py)
     """
     return getattr(action, 'node_executable', None) == 'create'
+
+
+# Regex de pgrep/pkill para Gazebo: casa con el envoltorio (ruby .../gz sim) y
+# con sus hijos (gz sim server, gz sim gui). Exige que gz vaya al principio o
+# tras '/': asi no casa con una shell que tenga el texto "gz sim" en un comando
+GZ_PATTERN = '(^|/)gz sim( |$)'
+
+
+def gz_running():
+    """True si queda algun proceso de Gazebo vivo."""
+    return subprocess.run(['pgrep', '-f', GZ_PATTERN],
+                          stdout=subprocess.DEVNULL).returncode == 0
+
+
+def kill_gz(event, context):
+    """Mata lo que quede de Gazebo cuando sale su proceso.
+
+    gz_sim.launch.py lanza sh -> ruby gz sim -> {server, gui}. Al cerrar, el
+    launch solo mata el primero y server y gui siguen vivos: el siguiente
+    bringup meteria el robot en ese Gazebo viejo, con otro laberinto. Se puede
+    matar por patron porque start() comprueba que no habia ningun Gazebo antes
+    de lanzar el nuestro.
+    """
+    if not re.search(GZ_PATTERN, ' '.join(event.cmd)):
+        return None  # Ha salido otro proceso
+    if not gz_running():
+        return None
+    launch.logging.get_logger('bringup').info(
+        'Gazebo ha dejado procesos vivos (server/gui): cerrandolos')
+    subprocess.run(['pkill', '-INT', '-f', GZ_PATTERN])
+    for _ in range(30):  # Hasta 3 s para cerrarse bien
+        if not gz_running():
+            return None
+        time.sleep(0.1)
+    subprocess.run(['pkill', '-KILL', '-f', GZ_PATTERN])
+    launch.logging.get_logger('bringup').warning(
+        'Gazebo no se cerraba: matado con SIGKILL')
+    return None
 
 
 def generate_launch_description():
@@ -112,15 +155,28 @@ def generate_launch_description():
         OnProcessExit(target_action=judge,
                       on_exit=[Shutdown(reason='el juez ha terminado')]))
 
+    # 6) Cuando sale Gazebo (al cerrar el launch o su ventana), matar sus
+    # restos. Sin target_action: el proceso esta dentro de gz_sim.launch.py y
+    # kill_gz lo reconoce por el comando
+    cleanup = RegisterEventHandler(OnProcessExit(on_exit=kill_gz))
+
+    # Antes de lanzar nada: si ya hay un Gazebo (de un bringup anterior que no
+    # se cerro bien), create meteria el robot ahi, en otro laberinto, y SLAM y
+    # el juez medirian una ejecucion que no es. Mejor parar con un aviso. Con
+    # una excepcion ros2 launch sale con codigo 1, y un script en bucle lo ve
+    def start(context):
+        if gz_running():
+            raise RuntimeError(
+                'Ya hay un Gazebo corriendo, de un bringup anterior que no se '
+                "cerro bien. Verlo: pgrep -fa 'gz sim'. Cerrarlo: "
+                "pkill -f '%s'" % GZ_PATTERN)
+        return [maze, spawn, slam, run, stop_all, cleanup]
+
     return LaunchDescription([
         *declare_args,
         declare_slam,
         declare_agent,
         declare_results,
         declare_maps,
-        maze,
-        spawn,
-        slam,
-        run,
-        stop_all,
+        OpaqueFunction(function=start),
     ])
