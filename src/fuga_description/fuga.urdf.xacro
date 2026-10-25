@@ -120,7 +120,7 @@
   <gazebo reference="lidar">
     <sensor name="lidar_sensor" type="gpu_lidar">
       <always_on>1</always_on>
-      <update_rate>10</update_rate>
+      <update_rate>20</update_rate>
       <visualize>true</visualize>
       <topic>lidar</topic>
       <gz_frame_id>lidar</gz_frame_id>
@@ -199,7 +199,7 @@
       <!-- Nombres de los joints que genera la macro wheel (name + "_joint") -->
       <left_joint>left_wheel_joint</left_joint>
       <right_joint>right_wheel_joint</right_joint>
-      <wheel_separation>${wheel_sep}</wheel_separation>
+      <wheel_separation>${body_y}</wheel_separation>
       <wheel_radius>${wheel_r}</wheel_radius>
       <!-- 30 Hz: suficiente para navegar; a 1 Hz la odometria va a saltos -->
       <odom_publish_frequency>30</odom_publish_frequency>

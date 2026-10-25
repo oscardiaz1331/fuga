@@ -157,7 +157,7 @@
   <gazebo reference="lidar">
     <sensor name="lidar_sensor" type="gpu_lidar">
       <always_on>1</always_on>
-      <update_rate>10</update_rate>
+      <update_rate>20</update_rate>
       <visualize>true</visualize>
       <topic>lidar</topic>
       <gz_frame_id>lidar</gz_frame_id>
@@ -218,7 +218,7 @@
       <!-- Nombres de los joints que genera la macro wheel (name + "_joint") -->
       <left_joint>left_wheel_joint</left_joint>
       <right_joint>right_wheel_joint</right_joint>
-      <wheel_separation>0.18</wheel_separation>
+      <wheel_separation>0.16</wheel_separation>
       <wheel_radius>0.04</wheel_radius>
       <!-- 30 Hz: suficiente para navegar; a 1 Hz la odometria va a saltos -->
       <odom_publish_frequency>30</odom_publish_frequency>
@@ -239,6 +239,23 @@
          ros_gz_bridge (gz.msgs.Model -> sensor_msgs/msg/JointState) -->
     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
       <topic>joint_states</topic>
+    </plugin>
+    <!-- PosePublisher: publica la pose real del robot en el mundo (ground truth),
+         sin la deriva de la odometria de DiffDrive. La usa el juez para medir
+         tiempo y longitud del camino. Solo la pose del modelo: con
+         use_pose_vector_msg=false cada pose sale como un gz.msgs.Pose suelto en
+         el mismo topic, asi que si tambien se publicaran los links se mezclarian.
+         Topic: /model/fuga/pose (el nombre sale de entity_name en spawn.launch.py) -->
+    <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
+      <publish_model_pose>true</publish_model_pose>
+      <publish_link_pose>false</publish_link_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_sensor_pose>false</publish_sensor_pose>
+      <publish_nested_model_pose>false</publish_nested_model_pose>
+      <use_pose_vector_msg>false</use_pose_vector_msg>
+      <!-- 50 Hz: a 0.3 m/s son 6 mm entre muestras, de sobra para la longitud -->
+      <update_frequency>50</update_frequency>
     </plugin>
     <plugin filename="gz-sim-triggered-publisher-system" name="gz::sim::systems::TriggeredPublisher">
       <input topic="/keyboard/keypress" type="gz.msgs.Int32">

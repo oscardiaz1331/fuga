@@ -14,7 +14,8 @@ def generate_launch_description():
     x = LaunchConfiguration('x')
     y = LaunchConfiguration('y')
 
-    # Por defecto, centro de la celda (0, 0) del laberinto (celdas de 1 m)
+    # Por defecto, centro de la celda (0, 0) del laberinto (celdas de 1 m).
+    # bringup.launch.py los calcula a partir de start_x/start_y
     declare_x = DeclareLaunchArgument('x', default_value='0.5')
     declare_y = DeclareLaunchArgument('y', default_value='0.5')
     declare_rviz = DeclareLaunchArgument('rviz', default_value='true')
