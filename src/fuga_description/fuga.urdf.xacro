@@ -223,6 +223,10 @@
       filename="gz-sim-joint-state-publisher-system"
       name="gz::sim::systems::JointStatePublisher">
       <topic>joint_states</topic>
+      <!-- Sin update_rate publica en cada paso de fisica (1000 Hz con pasos de
+           1 ms): el puente y robot_state_publisher se comen CPU que frena la
+           simulacion acelerada. 30 Hz, como la odometria, basta para RViz -->
+      <update_rate>30</update_rate>
     </plugin>
 
          <!-- PosePublisher: publica la pose real del robot en el mundo (ground truth),

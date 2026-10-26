@@ -41,6 +41,15 @@ void maze_gen::MazeExporter::set_start(int x, int y)
   start_y_ = y;
 }
 
+void maze_gen::MazeExporter::set_step_size(double seconds)
+{
+  if (!(seconds > 0)) {  // Tambien rechaza NaN
+    throw std::invalid_argument(
+        "step_size must be > 0, got " + std::to_string(seconds));
+  }
+  step_size_ = seconds;
+}
+
 maze_gen::MazeExporter::Point maze_gen::MazeExporter::cell_center(
   int x,
   int y)
@@ -163,8 +172,14 @@ void maze_gen::MazeExporter::write_sdf(
   std::ostream & os,
   const std::vector<maze_gen::MazeExporter::Wall> & walls) const
 {
-  os << "<?xml version=\"1.0\"?>\n<sdf version=\"1.9\"><world name=\"maze\">\n"
-    "<plugin filename=\"gz-sim-physics-system\" "
+  os << "<?xml version=\"1.0\"?>\n<sdf version=\"1.9\"><world name=\"maze\">\n";
+  // Cada paso de fisica tiene un coste fijo (~0.6 ms con el robot), asi que
+  // con pasos de 1 ms Gazebo no pasa de ~1.5x por mucho que se le pida. La
+  // velocidad maxima la pone maze.launch.py con -z (pasos por segundo real)
+  os << "<physics name=\"default\" type=\"ignored\"><max_step_size>"
+     << step_size_ << "</max_step_size><real_time_factor>1</real_time_factor>"
+    "</physics>\n";
+  os << "<plugin filename=\"gz-sim-physics-system\" "
     "name=\"gz::sim::systems::Physics\"/>\n"
     "<plugin filename=\"gz-sim-user-commands-system\" "
     "name=\"gz::sim::systems::UserCommands\"/>\n"
@@ -362,6 +377,8 @@ maze_gen::MazeExporterNode::MazeExporterNode()
   // Celda donde aparece el robot. bringup.launch.py usa la misma para el spawn
   const int start_x = this->declare_parameter("start_x", 0);
   const int start_y = this->declare_parameter("start_y", 0);
+  // Paso de fisica (s). maze.launch.py lo usa tambien para calcular -z
+  const double step_size = this->declare_parameter("step_size", 0.001);
   const auto now = std::chrono::system_clock::now();
   const std::string date =
     std::to_string(std::chrono::duration_cast<std::chrono::seconds>(
@@ -378,6 +395,7 @@ maze_gen::MazeExporterNode::MazeExporterNode()
                   std::make_optional(static_cast<uint64_t>(seed)),
       difficulty);
   exporter_->set_start(start_x, start_y);
+  exporter_->set_step_size(step_size);
   export_maze();
 }
 

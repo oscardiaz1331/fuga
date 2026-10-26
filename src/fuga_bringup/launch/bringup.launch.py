@@ -75,7 +75,8 @@ def generate_launch_description():
     # Argumentos de cada launch incluido, reexpuestos aqui con los mismos
     # nombres y valores por defecto para poder cambiarlos desde bringup
     maze_args = {'folder': '/tmp/maze', 'width': '10', 'height': '10',
-                 'difficulty': '10', 'seed': '0', 'start_x': '0', 'start_y': '0'}
+                 'difficulty': '10', 'seed': '0', 'start_x': '0', 'start_y': '0',
+                 'rtf': '1.0', 'step': '0.001', 'headless': 'false'}
     spawn_args = {'rviz': 'true'}
 
     declare_args = [DeclareLaunchArgument(name, default_value=value)
@@ -111,6 +112,7 @@ def generate_launch_description():
     # con celdas de 1 m (kCell en maze_export/export.hpp)
     spawn = include('fuga_description', 'spawn.launch.py',
                     {**{name: LaunchConfiguration(name) for name in spawn_args},
+                     'headless': LaunchConfiguration('headless'),
                      'x': PythonExpression([LaunchConfiguration('start_x'), ' + 0.5']),
                      'y': PythonExpression([LaunchConfiguration('start_y'), ' + 0.5'])})
 

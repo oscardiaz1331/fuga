@@ -86,6 +86,7 @@ ros2 launch fuga_bringup bringup.launch.py agent:=pledge                  # otro
 ros2 launch fuga_bringup bringup.launch.py width:=15 height:=15 difficulty:=5 seed:=42
 ros2 launch fuga_bringup bringup.launch.py start_x:=4 start_y:=4          # robot en la celda (4, 4)
 ros2 launch fuga_bringup bringup.launch.py slam:=false rviz:=false        # solo mundo, robot, agente y juez
+ros2 launch fuga_bringup bringup.launch.py rtf:=10 step:=0.005 headless:=true rviz:=false  # ~5x más rápido, sin ventanas
 ros2 launch fuga_bringup bringup.launch.py --show-args                    # todos los argumentos
 
 # Sin agente ni juez, para conducir a mano
@@ -118,10 +119,19 @@ Para comparar agentes, basta un bucle; cada ejecución añade una fila al mismo 
 for seed in 1 2 3; do
   for agent in wall_follower pledge; do
     ros2 launch fuga_bringup bringup.launch.py seed:=$seed agent:=$agent \
-      rviz:=false slam:=false results:=$HOME/fuga_results.csv
+      rviz:=false headless:=true rtf:=10 step:=0.005 slam:=false \
+      results:=$HOME/fuga_results.csv
   done
 done
 ```
+
+`rtf` es el máximo de veces que la simulación va más rápida que el reloj real, y
+`step` el paso de física en segundos. Hacen falta los dos: cada paso tiene un coste
+fijo, así que con el paso por defecto (1 ms) Gazebo no pasa de ~1,5x aunque se le
+pida más. Con 5 ms, el mismo laberinto da el mismo resultado (tiempo y recorrido) en
+menos de la mitad de tiempo real. Los tiempos del CSV son de simulación, así que no
+cambian con esto. El factor real se ve con `gz topic -e -t /stats`
+(`real_time_factor`).
 
 ## Tests
 

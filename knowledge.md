@@ -143,7 +143,7 @@ ros2 launch fuga_bringup bringup.launch.py --show-args            # todos los ar
 ```
 
 Argumentos: los de `maze.launch.py` (`folder`, `width`, `height`, `difficulty`,
-`seed`, `start_x`, `start_y`), `rviz` de `spawn.launch.py`, `slam` (por defecto `true`),
+`seed`, `start_x`, `start_y`, `rtf`, `step`, `headless`), `rviz` de `spawn.launch.py`, `slam` (por defecto `true`),
 `agent` (`wall_follower` por defecto, `pledge` o `none`) y `results` (CSV del juez,
 por defecto `<folder>/results.csv`).
 `start_x`/`start_y` es la celda de inicio (por defecto `0 0`): el bringup se la pasa
@@ -446,12 +446,58 @@ ejecucion anade una fila al mismo CSV:
 for seed in 1 2 3; do
   for agent in wall_follower pledge; do
     ros2 launch fuga_bringup bringup.launch.py seed:=$seed agent:=$agent \
-      rviz:=false slam:=false results:=$HOME/fuga_results.csv
+      rviz:=false headless:=true rtf:=10 step:=0.005 slam:=false \
+      results:=$HOME/fuga_results.csv
   done
 done
 ```
 
 `results` fuera de `/tmp` para no perderlo al reiniciar.
+
+### Acelerar la simulacion
+
+```bash
+ros2 launch fuga_bringup bringup.launch.py rtf:=10 step:=0.005 headless:=true rviz:=false
+```
+
+- `step`: paso de fisica (s). `maze2world` lo escribe en el `<physics>` de
+  `maze.sdf` (`max_step_size`). Por defecto 0.001, el de Gazebo.
+- `rtf`: maximo de veces mas rapido que el reloj real. El launch pasa
+  `gz sim -z <rtf / step>` (pasos de fisica por segundo real).
+- `headless:=true`: solo `gz sim server` (`-s`), sin GUI; tampoco pide a la GUI que
+  la camara siga al robot.
+- Es seguro porque todo va con hora de simulacion: el agente reacciona a cada
+  `/scan`, el juez mide con el `stamp` de `/ground_truth/pose` y `exit_timeout`,
+  `timeout` y `start_timeout` son segundos simulados.
+- Factor real: `gz topic -e -t /stats` (campo `real_time_factor`).
+
+**Por que `rtf` solo no basta.** Cada paso de fisica tiene un coste fijo
+(~0.3 ms el laberinto solo, ~0.65 ms con el robot, medido en WSL2 con
+`gz sim -s` y `-z` alto). Con pasos de 1 ms el techo es ~1.5x aunque se pida 10x, y
+la CPU queda medio vacia: no es falta de potencia, es trabajo en serie por paso. El
+lidar no es el freno (sin el sale igual), aunque renderiza por software (llvmpipe).
+Medido con `gz sim -s` solo (sin ROS):
+
+| paso  | rtf maximo |
+|-------|------------|
+| 1 ms  | ~1.5x      |
+| 2 ms  | ~2.9x      |
+| 3 ms  | ~4.7x      |
+| 5 ms  | ~6.2x      |
+
+Con todo el bringup (puente, agente, juez) se queda en ~5x con 5 ms.
+
+**Por que 5 ms es seguro.** Mismo arco (0.2 m/s, 0.4 rad/s, 20 s) con pasos de 1 a
+5 ms: el robot no rebota (z estable) y la pose final queda igual o mas cerca de la
+teorica. Bringup con `seed:=42`, 5x5: 93.2 s / 26.47 m a 1 ms y 93.5 s / 26.49 m a
+5 ms; con SLAM el IoU no empeora (0.35 a 1 ms, 0.45 a 5 ms, una ejecucion de cada).
+Mejor un paso que divida los periodos de los sensores (IMU 10 ms, pose 20 ms, lidar
+50 ms): 1, 2 o 5 ms. Con 3 o 4 ms salen a intervalos irregulares.
+
+**JointStatePublisher** lleva `<update_rate>30</update_rate>`: sin el publica
+`/joint_states` en cada paso de fisica, y el puente y robot_state_publisher gastaban
+CPU que frenaba la simulacion acelerada (46 s -> 40 s en la prueba de arriba).
+`/clock` sigue saliendo en cada paso; Gazebo no tiene opcion para espaciarlo.
 
 ## 10. Pendiente
 

@@ -34,6 +34,9 @@ public:
             // Celda donde aparece el robot; por defecto (0, 0). meta.yaml mide las distancias
             // desde ella. Lanza std::out_of_range si queda fuera de la rejilla
   void set_start(int x, int y);
+            // Paso de fisica de Gazebo (s), escrito en el <physics> del SDF. Mas grande = menos
+            // pasos por segundo simulado = simulacion mas rapida. Lanza std::invalid_argument si <= 0
+  void set_step_size(double seconds);
   void export_maze(const Outputs & out);
 
 private:
@@ -51,6 +54,7 @@ private:
 
   std::vector<maze_gen::MazeExporter::Wall> extract_walls(const maze_gen::MazeGrid & maze) const;
   int start_x_ = 0, start_y_ = 0;
+  double step_size_ = 0.001;          // El de Gazebo si el mundo no trae <physics>
 
         // Centro de una celda en coordenadas de mundo (m)
   static Point cell_center(int x, int y);

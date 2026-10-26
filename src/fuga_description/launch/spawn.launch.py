@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
                             IncludeLaunchDescription, RegisterEventHandler)
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
@@ -19,6 +19,9 @@ def generate_launch_description():
     declare_x = DeclareLaunchArgument('x', default_value='0.5')
     declare_y = DeclareLaunchArgument('y', default_value='0.5')
     declare_rviz = DeclareLaunchArgument('rviz', default_value='true')
+    declare_headless = DeclareLaunchArgument(
+        'headless', default_value='false',
+        description='true si Gazebo va sin GUI: no hay camara que mover')
 
     # Expande el xacro a URDF al lanzar, asi siempre se usa la version instalada
     robot_description = ParameterValue(
@@ -72,7 +75,9 @@ def generate_launch_description():
                 '--reqtype', 'gz.msgs.StringMsg', '--reptype', 'gz.msgs.Boolean',
                 '--timeout', '5000', '--req', 'data: "fuga"'],
                 output='screen'),
-        ]))
+        ]),
+        # Sin GUI estos servicios no existen y cada uno esperaria 5 s para nada
+        condition=UnlessCondition(LaunchConfiguration('headless')))
 
     # RViz con RobotModel, TF y LaserScan. use_sim_time para que acepte los
     # mensajes con la hora de Gazebo; sin el descarta TF y scan por antiguos
@@ -88,6 +93,7 @@ def generate_launch_description():
         declare_x,
         declare_y,
         declare_rviz,
+        declare_headless,
         robot_state_publisher,
         follow_camera,
         spawn_and_bridge,

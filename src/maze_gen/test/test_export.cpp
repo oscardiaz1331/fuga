@@ -163,6 +163,30 @@ TEST(MazeExporter, StartOutsideTheGridIsRejected)
   EXPECT_THROW(exporter.set_start(0, -1), std::out_of_range);
 }
 
+TEST(MazeExporter, SdfHasPhysicsWithTheStepSize)
+{
+  // By default 1 ms, the same as Gazebo when the world has no <physics>
+  EXPECT_NE(export_known_maze().sdf.find("<max_step_size>0.001</max_step_size>"),
+    std::string::npos);
+
+  std::ostringstream sdf;
+  maze_gen::MazeExporter::Outputs out;
+  out.sdf = &sdf;
+  maze_gen::MazeExporter exporter(known_maze());
+  exporter.set_step_size(0.005);
+  exporter.export_maze(out);
+  EXPECT_EQ(count(sdf.str(), "<physics "), 1u);
+  EXPECT_NE(sdf.str().find("<max_step_size>0.005</max_step_size>"), std::string::npos);
+}
+
+TEST(MazeExporter, NonPositiveStepSizeIsRejected)
+{
+  maze_gen::MazeExporter exporter(known_maze());
+
+  EXPECT_THROW(exporter.set_step_size(0.0), std::invalid_argument);
+  EXPECT_THROW(exporter.set_step_size(-0.001), std::invalid_argument);
+}
+
 TEST(MazeExporter, UnreachableExitHasNoDistance)
 {
   // Two cells with the wall between them still up: the exit of B can't be reached from A
