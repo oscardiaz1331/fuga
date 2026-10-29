@@ -74,6 +74,19 @@
     <xacro:box_inertia m="${body_m}" x="${body_x}" y="${body_y}" z="${body_z}"/>
   </link>
 
+  <!-- base_footprint: proyeccion de base_link en el suelo (REP-120), el frame
+       que Nav2 usa por defecto en collision_monitor y docking_server. Solo es un
+       frame, sin geometria: robot_state_publisher lo publica en TF y al convertir
+       a SDF desaparece. Va como hijo de base_link y no como raiz para no cambiar
+       odom -> base_link de DiffDrive ni el base_frame de SLAM.
+       z = -wheel_r: el eje de las ruedas esta en z = 0 de base_link, asi que el
+       suelo queda un radio de rueda por debajo -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_link"/><child link="base_footprint"/>
+    <origin xyz="0 0 ${-wheel_r}"/>
+  </joint>
+
   <!-- Instancias de la macro: rueda izquierda en +y, derecha en -y -->
   <xacro:wheel name="${left_wheel}"  side="1"/>
   <xacro:wheel name="${right_wheel}" side="-1"/>

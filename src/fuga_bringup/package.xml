@@ -12,6 +12,7 @@
   <exec_depend>maze_export</exec_depend>
   <exec_depend>fuga_description</exec_depend>
   <exec_depend>fuga_slam</exec_depend>
+  <exec_depend>fuga_nav</exec_depend>
   <exec_depend>fuga_agents</exec_depend>
   <exec_depend>fuga_eval</exec_depend>
 

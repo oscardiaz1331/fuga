@@ -84,6 +84,10 @@ def generate_launch_description():
     declare_slam = DeclareLaunchArgument(
         'slam', default_value='true',
         description='false para lanzar solo mundo y robot (p. ej. agentes N1)')
+    declare_nav2 = DeclareLaunchArgument(
+        'nav2', default_value='false',
+        description='true para lanzar Nav2 (necesita slam:=true). Usar con '
+                    'agent:=none: el agente tambien publica en /cmd_vel')
     declare_agent = DeclareLaunchArgument(
         'agent', default_value='wall_follower',
         description='wall_follower, pledge, o none para no lanzar agente ni '
@@ -123,6 +127,14 @@ def generate_launch_description():
             target_action=is_create,
             on_exit=[include('fuga_slam', 'slam.launch.py', {})]),
         condition=IfCondition(LaunchConfiguration('slam')))
+
+    # 3b) Nav2, a la vez que SLAM y por el mismo motivo. Sus costmaps esperan a
+    # que SLAM publique /map y map -> odom, asi que no hace falta mas retraso
+    nav2 = RegisterEventHandler(
+        OnProcessExit(
+            target_action=is_create,
+            on_exit=[include('fuga_nav', 'nav2.launch.py', {})]),
+        condition=IfCondition(LaunchConfiguration('nav2')))
 
     # 4) Agente y juez, juntos y tambien cuando el robot ya existe. Juntos para
     # que el start_timeout del juez no corra mientras el agente aun no esta.
@@ -172,11 +184,12 @@ def generate_launch_description():
                 'Ya hay un Gazebo corriendo, de un bringup anterior que no se '
                 "cerro bien. Verlo: pgrep -fa 'gz sim'. Cerrarlo: "
                 "pkill -f '%s'" % GZ_PATTERN)
-        return [maze, spawn, slam, run, stop_all, cleanup]
+        return [maze, spawn, slam, nav2, run, stop_all, cleanup]
 
     return LaunchDescription([
         *declare_args,
         declare_slam,
+        declare_nav2,
         declare_agent,
         declare_results,
         declare_maps,

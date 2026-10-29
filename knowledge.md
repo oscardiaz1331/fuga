@@ -514,7 +514,13 @@ CPU que frenaba la simulacion acelerada (46 s -> 40 s en la prueba de arriba).
   docstring de `include()` de `bringup.launch.py` (primera palabra en minuscula).
 - Diagnosticar la deriva de la odometria (seccion 8).
 - RViz: un `.rviz` para `slam:=false` con Fixed Frame `odom`.
-- Nav2 y cliente de `NavigateToPose`.
-- No instalados aun: `robot_localization` (fusionar IMU + odometria) y `nav2`
-  completo (`ros-jazzy-navigation2 ros-jazzy-nav2-bringup`). Al usarlos:
+- Nav2: `fuga_nav` (parametros en `config/nav2_params.yaml`, copia de los de
+  `nav2_bringup` con radio 0.16 m y `min_height` 0.05 en `collision_monitor`) y
+  `nav2:=true` en el bringup, junto con `agent:=none`. Falta ajustar velocidades y
+  costmaps a las celdas de 1 m. Cliente Python de `NavigateToPose` en
+  `fuga_py_navigate_to_pose`; falta la version C++ (N5).
+- `base_footprint` (en el suelo, hijo de `base_link`) existe porque
+  `collision_monitor` y `docking_server` de Nav2 lo usan por defecto. Sin el,
+  `collision_monitor` no deja pasar ninguna velocidad a `/cmd_vel`.
+- No instalado aun: `robot_localization` (fusionar IMU + odometria). Al usarlo:
   `exec_depend` en el package.xml y `rosdep install`.
