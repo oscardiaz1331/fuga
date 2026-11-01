@@ -75,6 +75,62 @@ Si `maze_export` falla con `maze_gen/maze_generator.hpp: No such file`, falta
 rm -rf build install log
 ```
 
+### Anadir una dependencia C++ (y que clangd la vea)
+
+Ejemplo: usar `NavigateToPose` en C++. Ojo, la accion esta en **`nav2_msgs`**, no
+en `nav_msgs` (`nav_msgs` solo tiene `msg/` y `srv/`: Odometry, Path, OccupancyGrid...).
+Para saber en que paquete esta algo: `ls /opt/ros/jazzy/include/<paquete>/<paquete>/`.
+
+1. `CMakeLists.txt`: `find_package` y enlazarla al target.
+
+   ```cmake
+   find_package(nav2_msgs REQUIRED)
+   find_package(rclcpp_action REQUIRED)
+
+   target_link_libraries(navigate_to_pose PUBLIC
+     rclcpp::rclcpp rclcpp_action::rclcpp_action
+     ${geometry_msgs_TARGETS} ${nav2_msgs_TARGETS})
+   ```
+
+   Paquetes de mensajes (`*_msgs`): `${<paquete>_TARGETS}`. Librerias normales:
+   `<paquete>::<paquete>`.
+
+2. `package.xml`: un `<depend>` por paquete (sirve para compilar y ejecutar, y para
+   que rosdep lo instale).
+
+   ```xml
+   <depend>nav2_msgs</depend>
+   <depend>rclcpp_action</depend>
+   ```
+
+3. `#include` en el codigo: `paquete/tipo/nombre_en_snake_case.hpp`.
+
+   ```cpp
+   #include "nav2_msgs/action/navigate_to_pose.hpp"
+   #include "rclcpp_action/rclcpp_action.hpp"
+   ```
+
+4. **Recompilar**, siempre con `CMAKE_EXPORT_COMPILE_COMMANDS=ON`:
+
+   ```bash
+   colcon build --packages-select fuga_cpp_navigate_to_pose --symlink-install \
+     --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+   ```
+
+5. En VS Code: `Ctrl+Shift+P` -> **clangd: Restart language server**.
+
+Por que hacen falta el 4 y el 5: clangd no lee el `CMakeLists.txt`. Saca las rutas
+de los includes de `build/<paquete>/compile_commands.json` (lo indica `.clangd` en la
+raiz, un bloque por paquete) y ese fichero solo se regenera al compilar. Hasta
+entonces el include sale como `file not found` aunque este bien escrito.
+
+- Paquete C++ nuevo: anadir su bloque a `.clangd`
+  (`PathMatch: src/<paquete>/.*` -> `CompilationDatabase: build/<paquete>`).
+- Si falla el enlazado (p. ej. `undefined reference to main`), el
+  `compile_commands.json` se genera igual: clangd funciona aunque el build falle.
+  Si falla CMake (`find_package`, `target_link_libraries` sobre un target que no
+  existe), no se genera.
+
 ## 3. Tests
 
 ```bash
@@ -499,7 +555,62 @@ Mejor un paso que divida los periodos de los sensores (IMU 10 ms, pose 20 ms, li
 CPU que frenaba la simulacion acelerada (46 s -> 40 s en la prueba de arriba).
 `/clock` sigue saliendo en cada paso; Gazebo no tiene opcion para espaciarlo.
 
-## 10. Pendiente
+## 10. Clientes de NavigateToPose
+
+Mandan un goal a Nav2 (por defecto el origen del mapa, la casilla de salida),
+imprimen el feedback y cancelan si la navegacion pasa de 30 s. Con Nav2 activo
+(`nav2:=true agent:=none`):
+
+```bash
+ros2 run fuga_py_navigate_to_pose navigate_to_pose
+ros2 run fuga_cpp_navigate_to_pose fuga_cpp_navigate_to_pose
+```
+
+El C++ es una libreria (`libnavigate_to_pose.so`, exportada) y el ejecutable solo
+tiene el `main.cpp`. Para usarla desde otro paquete:
+
+```cmake
+find_package(fuga_cpp_navigate_to_pose REQUIRED)
+target_link_libraries(mi_target PRIVATE fuga_cpp_navigate_to_pose::navigate_to_pose)
+```
+
+```xml
+<depend>fuga_cpp_navigate_to_pose</depend>
+```
+
+```cpp
+#include "fuga_cpp_navigate_to_pose/navigate_to_pose.hpp"
+auto node = std::make_shared<fuga_cpp_navigate_to_pose::NavigateToPoseCpp>();
+```
+
+No hace falta `find_package` de `rclcpp`, `nav2_msgs`... para esta libreria: los trae
+`ament_export_dependencies`. El header se instala en `include/<paquete>/<paquete>/`
+(layout recomendado desde Humble) y el target exporta `include/<paquete>`, asi que
+el `#include` es el mismo dentro y fuera del paquete.
+
+Notas del C++ (`NavigateToPoseCpp`):
+
+- `send_goal` devuelve un `std::shared_future<rclcpp_action::ResultCode>`. `main`
+  espera con `rclcpp::spin_until_future_complete` y sale con 0 solo si es
+  `SUCCEEDED`. Si el servidor no aparece en 10 s o rechaza el goal, el future vale
+  `UNKNOWN`.
+- La clase **no** llama a `rclcpp::shutdown()`: apaga el contexto global y pararia
+  todos los nodos del proceso si se usa como libreria. Decide quien la usa.
+- Cancelar: en C++ el `ClientGoalHandle` no tiene `cancel()` (en Python si,
+  `goal_handle.cancel_goal_async()`); se hace con
+  `action_client_->async_cancel_goal(goal_handle)`. El resultado llega despues a
+  `result_callback` como `CANCELED`.
+- `feedback->navigation_time` es un `builtin_interfaces/Duration` (`sec` +
+  `nanosec`): se compara como `rclcpp::Duration(feedback->navigation_time)`. Lo mide
+  Nav2 con su reloj, asi que con `use_sim_time` son segundos simulados (vale con la
+  simulacion acelerada).
+- `rclcpp::Duration` no puede ser `static constexpr` (destructor virtual, no es
+  tipo literal): `static inline const`. `wait_for_action_server` pide un
+  `std::chrono`, no un `rclcpp::Duration`.
+- En el goal response el estado siempre es `ACCEPTED`: el resultado final
+  (`SUCCEEDED`, `ABORTED`, `CANCELED`) solo se ve en `result_callback`.
+
+## 11. Pendiente
 
 - `package.xml`: rellenar `<description>` en `fuga_description`, `fuga_agents`,
   `fuga_slam` y `fuga_eval`, y `<license>` en `maze_export` (siguen con TODO).
@@ -517,8 +628,9 @@ CPU que frenaba la simulacion acelerada (46 s -> 40 s en la prueba de arriba).
 - Nav2: `fuga_nav` (parametros en `config/nav2_params.yaml`, copia de los de
   `nav2_bringup` con radio 0.16 m y `min_height` 0.05 en `collision_monitor`) y
   `nav2:=true` en el bringup, junto con `agent:=none`. Falta ajustar velocidades y
-  costmaps a las celdas de 1 m. Cliente Python de `NavigateToPose` en
-  `fuga_py_navigate_to_pose`; falta la version C++ (N5).
+  costmaps a las celdas de 1 m. Clientes de `NavigateToPose` en Python
+  (`fuga_py_navigate_to_pose`) y C++ (`fuga_cpp_navigate_to_pose`, N5), ver
+  seccion 10.
 - `base_footprint` (en el suelo, hijo de `base_link`) existe porque
   `collision_monitor` y `docking_server` de Nav2 lo usan por defecto. Sin el,
   `collision_monitor` no deja pasar ninguna velocidad a `/cmd_vel`.

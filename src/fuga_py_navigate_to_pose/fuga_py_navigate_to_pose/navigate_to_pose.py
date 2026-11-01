@@ -1,4 +1,3 @@
-from nav2_msgs.action._navigate_to_pose import NavigateToPose_Goal
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -54,7 +53,7 @@ class NavigateToPosePython(Node):
             self.get_logger().warn(f"Estado final inesperado: {status}")
 
     def send_goal(self, pose: PoseStamped) -> None:
-        goal: NavigateToPose_Goal = NavigateToPose.Goal()
+        goal = NavigateToPose.Goal()
         goal.pose = pose
         if not self._action_client.wait_for_server(timeout_sec=self._server_timeout_s):
             self.get_logger().error(

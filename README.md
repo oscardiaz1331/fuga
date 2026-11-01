@@ -32,8 +32,9 @@ va construyendo slam_toolbox; en rojo, las lecturas del lidar sobre los muros.*
   recorrido, lo apunta en un CSV y, con SLAM, guarda el mapa y su IoU.
 - **Navegación** (`fuga_nav`): Nav2 sobre el mapa de SLAM, con parámetros ajustados
   al robot (radio y alturas del `collision_monitor`).
-- **Cliente de Nav2** (`fuga_py_navigate_to_pose`): nodo Python que manda un goal a
-  `NavigateToPose`, imprime el feedback y cancela si tarda demasiado.
+- **Clientes de Nav2** (`fuga_py_navigate_to_pose` y `fuga_cpp_navigate_to_pose`):
+  nodos Python y C++ que mandan un goal a `NavigateToPose`, imprimen el feedback y
+  cancelan si tarda demasiado.
 - **Bringup** (`fuga_bringup`): un solo launch para mundo, robot, SLAM, Nav2, agente
   y juez. Se cierra solo cuando el juez termina, así que se puede lanzar en bucle.
 
@@ -48,6 +49,7 @@ src/fuga_slam/           parámetros y launch de slam_toolbox, map_iou.py
 src/fuga_eval/           juez (librería + judge_node)
 src/fuga_nav/            parámetros y launch de Nav2
 src/fuga_py_navigate_to_pose/  cliente Python de NavigateToPose
+src/fuga_cpp_navigate_to_pose/ cliente C++ de NavigateToPose
 src/fuga_bringup/        bringup.launch.py
 docs/                    notas de aprendizaje e imágenes
 knowledge.md             chuleta de comandos y diagnóstico
@@ -105,6 +107,7 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 # origen del mapa, que es la casilla de salida
 ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=none
 ros2 run fuga_py_navigate_to_pose navigate_to_pose
+ros2 run fuga_cpp_navigate_to_pose fuga_cpp_navigate_to_pose   # o la versión C++
 ```
 
 `difficulty` va de 0 a 10: con 10 el laberinto es perfecto (un solo camino, sin
@@ -170,15 +173,12 @@ Hecho:
 - SLAM online con slam_toolbox.
 - Juez: CSV de resultados, mapa SLAM e IoU frente al PGM de referencia.
 - Bringup completo que se cierra solo, para baterías de pruebas.
-- Nav2 sobre el mapa de SLAM y cliente Python de `NavigateToPose`: el robot vuelve
-  a la casilla de salida.
+- Nav2 sobre el mapa de SLAM y clientes de `NavigateToPose` en Python y C++: el
+  robot vuelve a la casilla de salida.
 
 Pendiente:
-- Probar el bringup con agente + juez de principio a fin en Gazebo.
-- Probar `nav2:=true` desde el bringup (Nav2 se probó lanzado aparte).
 - Ajustar velocidades y costmaps de Nav2 a las celdas de 1 m (siguen los valores
   por defecto: hasta 0.5 m/s).
-- Cliente C++ de `NavigateToPose` (rclcpp), para comparar con el de Python.
 - Tests del juez (`Judge`, `PathLength`, CSV y `meta`).
 - Diagnosticar la deriva de la odometría.
 
