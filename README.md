@@ -26,9 +26,11 @@ va construyendo slam_toolbox; en rojo, las lecturas del lidar sobre los muros.*
   configuración de RViz.
 - **Agentes** (`fuga_agents`): seguidor de pared (mano derecha o izquierda), Pledge y
   explorador de fronteras, elegibles por argumento. El explorador busca en el mapa de
-  SLAM las fronteras (celdas libres junto a zonas desconocidas), elige una por
-  tamaño y distancia por camino (BFS por celdas libres, rodeando las paredes) y
-  manda el robot con Nav2.
+  SLAM las fronteras (celdas libres junto a zonas desconocidas), elige la más
+  cercana por camino (BFS por celdas libres, rodeando las paredes; el tamaño solo
+  desempata entre fronteras a distancia parecida) y manda el robot con Nav2. El
+  objetivo de cada frontera se elige a 0,25 m o más de los muros, para que el robot
+  quepa.
 - **SLAM** (`fuga_slam`): slam_toolbox configurado para este robot y `map_iou.py`,
   que compara el mapa de SLAM con el PGM de referencia (IoU, precisión y recall).
 - **Juez** (`fuga_eval`): decide si el robot ha salido, en cuánto tiempo y con qué
@@ -110,6 +112,9 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard
 # Explorador de fronteras: necesita SLAM y Nav2. No publica en /cmd_vel (mueve
 # el robot a través de Nav2), así que es el único agente compatible con nav2:=true
 ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=frontier_explorer
+# Con Gazebo, RViz, SLAM y Nav2 a la vez la simulación puede ir por debajo del
+# tiempo real (se ve con gz topic -e -t /stats). Sin ventanas va más rápido
+ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=frontier_explorer rviz:=false headless:=true
 
 # Nav2 con un cliente a mano (con agent:=none: wall_follower y pledge también
 # publican en /cmd_vel). Cuando el log diga "Managed nodes are active", el
@@ -122,9 +127,11 @@ ros2 run fuga_cpp_navigate_to_pose fuga_cpp_navigate_to_pose   # o la versión C
 El explorador decide cada 500 ms de tiempo simulado (el timer usa el reloj del
 nodo, no el real, así que se adapta a `rtf`). Mientras Nav2 navega, comprueba que
 siga habiendo frontera cerca del objetivo (0,5 m); si ha desaparecido (el lidar ya
-ha descubierto esa zona), cancela el goal y elige otra. Cuando Nav2 termina, elige
-otra frontera. Las fronteras a las que Nav2 no ha podido llegar no se vuelven a
-intentar; las que cancela el propio explorador, sí.
+ha descubierto esa zona), manda directamente el goal siguiente y Nav2 sustituye el
+actual sin frenar el robot. Cuando Nav2 termina, elige otra frontera. Las fronteras
+a las que Nav2 no ha podido llegar se evitan mientras haya otras; si solo quedan
+esas, se vuelven a intentar. Cuando no queda ninguna, el log dice por qué (pegadas a
+muros o sin camino).
 
 `difficulty` va de 0 a 10: con 10 el laberinto es perfecto (un solo camino, sin
 bucles); cuanto más bajo, más bucles e islas, que es justo donde fallan los
@@ -198,8 +205,9 @@ Pendiente:
 - Explorador de fronteras: tener en cuenta el radio del robot en el BFS (ahora
   puede contar huecos por los que el robot no cabe; Nav2 falla y la frontera se
   descarta).
-- Ajustar velocidades y costmaps de Nav2 a las celdas de 1 m (siguen los valores
-  por defecto: hasta 0.5 m/s).
+- Ajustar las velocidades de Nav2 a las celdas de 1 m (siguen los valores por
+  defecto: hasta 0.5 m/s). La inflación de los costmaps y la carga de MPPI ya están
+  ajustadas al laberinto.
 - Tests del juez (`Judge`, `PathLength`, CSV y `meta`).
 - Diagnosticar la deriva de la odometría.
 

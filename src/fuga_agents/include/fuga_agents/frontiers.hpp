@@ -16,9 +16,13 @@ struct Frontier {
 
 // Celdas libres (0) con algun vecino desconocido (-1), agrupadas por BFS
 // (8-conexion). Descarta grupos con menos de min_size celdas. No modifica el grid.
+// clearance (celdas): el objetivo debe estar a mas de clearance celdas de cualquier
+// obstaculo, para que el robot quepa. Se elige la celda con holgura mas cercana al
+// centroide; si ninguna la tiene, se descarta el grupo (suele ser un hueco en un muro
+// que SLAM no ha visto). Con 0 no se exige holgura.
 std::vector<Frontier> find_frontiers(int width, int height,
                                      std::span<const int8_t> grid,
-                                     int min_size = 3);
+                                     int min_size = 3, int clearance = 0);
 
 // true si alguna celda frontera cae en la ventana cuadrada de lado 2 * radius + 1
 // centrada en (cx, cy). Sirve para saber si el objetivo actual sigue mereciendo la
@@ -42,8 +46,11 @@ std::vector<int> path_distances(int width, int height, std::span<const int8_t> g
 //   distance_weight * distancia por camino (celdas) - size_weight * tamano (celdas).
 // distances sale de path_distances() desde el robot. Las fronteras sin camino se ignoran.
 // Devuelve nullopt si no queda ninguna (mapa explorado o fronteras inalcanzables).
+// Por defecto manda la cercania: 10 celdas de frontera valen 1 celda de camino, asi que
+// el tamano solo decide entre fronteras a distancia parecida. Con mas peso al tamano el
+// robot cruzaba el laberinto hacia fronteras grandes y volvia a por las pequenas.
 std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
                                         std::span<const int> distances, int width,
                                         double distance_weight = 1.0,
-                                        double size_weight = 0.5);
+                                        double size_weight = 0.1);
 } // namespace fuga_agents

@@ -92,6 +92,19 @@ void NavigateToPoseCpp::feedback_callback(
 void NavigateToPoseCpp::result_callback(
   const GoalHandle::WrappedResult & result, const ResultPromise & promise)
 {
+  const bool is_current =
+    current_goal_handle_ && current_goal_handle_->get_goal_id() == result.goal_id;
+  // Un goal que no es el actual es uno sustituido por otro más nuevo: Nav2 lo aborta,
+  // pero es lo esperado y no un error. Nav2 acepta el nuevo antes de abortar el viejo,
+  // así que al llegar este resultado current_goal_handle_ ya es el nuevo
+  if (!is_current && current_goal_handle_ &&
+    result.code == rclcpp_action::ResultCode::ABORTED)
+  {
+    RCLCPP_INFO(node_.get_logger(), "Goal anterior sustituido por uno nuevo");
+    promise->set_value(result.code);
+    return;
+  }
+
   switch (result.code) {
     case rclcpp_action::ResultCode::SUCCEEDED:
       RCLCPP_INFO(node_.get_logger(), "Navegación completada");
@@ -111,7 +124,7 @@ void NavigateToPoseCpp::result_callback(
   // UnknownGoalHandleError: por eso se borra el handle. Solo si es el goal actual: el
   // resultado de un goal anterior (abortado por Nav2 al aceptar uno nuevo) puede llegar
   // después de aceptarse el nuevo, y no debe borrarlo.
-  if (current_goal_handle_ && current_goal_handle_->get_goal_id() == result.goal_id) {
+  if (is_current) {
     current_goal_handle_.reset();
   }
 }

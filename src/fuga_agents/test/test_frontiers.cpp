@@ -50,7 +50,7 @@ bool contains(const Frontier & f, int x, int y, int width)
 // choose_frontier con las distancias por camino desde el robot en (robot_x, robot_y)
 std::optional<Frontier> choose_from(const Map & map, const std::vector<Frontier> & fs,
                                     int robot_x, int robot_y,
-                                    double distance_weight = 1.0, double size_weight = 0.5)
+                                    double distance_weight = 1.0, double size_weight = 0.1)
 {
   const auto distances = path_distances(map.width, map.height, map.data, robot_x, robot_y);
   return choose_frontier(fs, distances, map.width, distance_weight, size_weight);
@@ -192,6 +192,41 @@ TEST(FindFrontiers, ObjetivoEsCeldaLibreDelGrupoAunqueElCentroideCaigaEnPared) {
   EXPECT_EQ(map.at(f.target_x, f.target_y), 0);
 }
 
+TEST(FindFrontiers, ConHolguraElObjetivoSeApartaDeLaPared) {
+  // El centroide (4,1) tiene una pared justo debajo; con holgura 1 el objetivo
+  // pasa a una celda vecina sin paredes a distancia 1
+  const Map map = parse({
+    "?????????",
+    "#.......#",
+    "#...#...#",
+    "#.......#",
+    "#########",
+  });
+  const auto sin_holgura = find_frontiers(map.width, map.height, map.data, 1, 0);
+  ASSERT_EQ(sin_holgura.size(), 1u);
+  EXPECT_EQ(sin_holgura[0].target_x, 4);
+
+  const auto fs = find_frontiers(map.width, map.height, map.data, 1, 1);
+  ASSERT_EQ(fs.size(), 1u);
+  EXPECT_EQ(fs[0].cells.size(), 7u);  // el grupo no cambia, solo el objetivo
+  EXPECT_TRUE(fs[0].target_x == 3 || fs[0].target_x == 5) << fs[0].target_x;
+  EXPECT_EQ(fs[0].target_y, 1);
+}
+
+TEST(FindFrontiers, ConHolguraSeDescartanFronterasPegadasAParedes) {
+  // Hueco desconocido en un muro (SLAM no vio esas celdas): las fronteras de
+  // los dos lados estan pegadas a la pared y el robot no cabe
+  const Map map = parse({
+    "#####",
+    "#...#",
+    "##?##",
+    "#...#",
+    "#####",
+  });
+  EXPECT_EQ(find_frontiers(map.width, map.height, map.data, 1, 0).size(), 2u);
+  EXPECT_TRUE(find_frontiers(map.width, map.height, map.data, 1, 1).empty());
+}
+
 // ---------------------------------------------------------------- has_frontier_near
 
 TEST(HasFrontierNear, CentroEnFronteraEsTrue) {
@@ -292,7 +327,7 @@ TEST(ChooseFrontier, ElTamanoPuedeCompensarLaDistancia) {
   const auto fs = frontiers_of(map);
   ASSERT_EQ(fs.size(), 2u);
 
-  // Pesos por defecto (1.0, 0.5): pequena 1 - 0.5 = 0.5 < grande 4 - 2.5 = 1.5
+  // Pesos por defecto (1.0, 0.1): pequena 1 - 0.1 = 0.9 < grande 4 - 0.5 = 3.5
   const auto por_defecto = choose_from(map, fs, 5, 3);
   ASSERT_TRUE(por_defecto.has_value());
   EXPECT_EQ(por_defecto->target_x, 5);

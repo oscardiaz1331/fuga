@@ -25,9 +25,36 @@ bool is_frontier_cell(int x, int y, int width, int height,
          (y < height - 1 && grid[index + width] == kUnknown);
 }
 
-// Fija como objetivo la celda del grupo mas cercana al centroide, para que
-// siempre sea una celda libre (el centroide de una frontera curva puede caer en una pared).
-void set_target(Frontier & frontier, int width)
+// true si no hay ninguna celda ocupada (cualquier valor que no sea libre ni
+// desconocido) a clearance celdas o menos de (x, y), en distancia euclidea. Lo desconocido no cuenta: junto a una frontera
+// siempre lo hay.
+bool has_clearance(int x, int y, int width, int height,
+                   std::span<const int8_t> grid, int clearance)
+{
+  for (int dy = -clearance; dy <= clearance; ++dy) {
+    for (int dx = -clearance; dx <= clearance; ++dx) {
+      const int nx = x + dx;
+      const int ny = y + dy;
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height ||
+          dx * dx + dy * dy > clearance * clearance)
+      {
+        continue;
+      }
+      const int8_t value = grid[ny * width + nx];
+      if (value != kFree && value != kUnknown) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+// Fija como objetivo la celda del grupo con holgura mas cercana al centroide. Es
+// una celda del grupo, y no el centroide, para que siempre sea libre (el centroide
+// de una frontera curva puede caer en una pared). Devuelve false si ninguna celda
+// tiene holgura.
+bool set_target(Frontier & frontier, int width, int height,
+                std::span<const int8_t> grid, int clearance)
 {
   double cx = 0.0;
   double cy = 0.0;
@@ -38,21 +65,26 @@ void set_target(Frontier & frontier, int width)
   cx /= frontier.cells.size();
   cy /= frontier.cells.size();
 
+  bool found = false;
   double best = std::numeric_limits<double>::max();
   for (const int index : frontier.cells) {
-    const double d = std::hypot(index % width - cx, index / width - cy);
-    if (d < best) {
+    const int x = index % width;
+    const int y = index / width;
+    const double d = std::hypot(x - cx, y - cy);
+    if (d < best && has_clearance(x, y, width, height, grid, clearance)) {
       best = d;
-      frontier.target_x = index % width;
-      frontier.target_y = index / width;
+      frontier.target_x = x;
+      frontier.target_y = y;
+      found = true;
     }
   }
+  return found;
 }
 } // namespace
 
 std::vector<Frontier> find_frontiers(int width, int height,
                                      std::span<const int8_t> grid,
-                                     int min_size)
+                                     int min_size, int clearance)
 {
   std::vector<Frontier> frontiers;
   std::vector<bool> visited(grid.size(), false);
@@ -97,8 +129,9 @@ std::vector<Frontier> find_frontiers(int width, int height,
         }
       }
 
-      if (static_cast<int>(frontier.cells.size()) >= min_size) {
-        set_target(frontier, width);
+      if (static_cast<int>(frontier.cells.size()) >= min_size &&
+          set_target(frontier, width, height, grid, clearance))
+      {
         frontiers.push_back(std::move(frontier));
       }
     }
