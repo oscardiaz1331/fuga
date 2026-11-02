@@ -13,14 +13,14 @@
 namespace fuga_cpp_navigate_to_pose
 {
 
-class NavigateToPoseCpp : public rclcpp::Node
+class NavigateToPoseCpp
 {
 public:
   using NavigateToPose = nav2_msgs::action::NavigateToPose;
   using GoalHandle = rclcpp_action::ClientGoalHandle<NavigateToPose>;
   using ResultFuture = std::shared_future<rclcpp_action::ResultCode>;
 
-  NavigateToPoseCpp();
+  explicit NavigateToPoseCpp(rclcpp::Node& node);
 
   // Envía el goal y devuelve un future que se completa al terminar la navegación.
   // Si el servidor no está disponible o rechaza el goal, se completa con ResultCode::UNKNOWN.
@@ -34,6 +34,10 @@ private:
     const GoalHandle::SharedPtr & goal_handle,
     const std::shared_ptr<const NavigateToPose::Feedback> & feedback);
 
+  // Referencia y no shared_ptr: el nodo es el dueño de esta clase, así que siempre
+  // vive más que ella. Un shared_ptr crearía un ciclo y además shared_from_this()
+  // falla si se llama desde el constructor del nodo.
+  rclcpp::Node & node_;
   rclcpp_action::Client<NavigateToPose>::SharedPtr action_client_;
   std::promise<rclcpp_action::ResultCode> result_promise_;
   bool cancel_requested_ = false;

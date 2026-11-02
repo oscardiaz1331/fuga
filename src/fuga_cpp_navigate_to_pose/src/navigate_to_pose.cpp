@@ -3,10 +3,10 @@
 namespace fuga_cpp_navigate_to_pose
 {
 
-NavigateToPoseCpp::NavigateToPoseCpp()
-: rclcpp::Node("navigate_to_pose_cpp")
+NavigateToPoseCpp::NavigateToPoseCpp(rclcpp::Node & node)
+: node_(node)
 {
-  action_client_ = rclcpp_action::create_client<NavigateToPose>(this, "navigate_to_pose");
+  action_client_ = rclcpp_action::create_client<NavigateToPose>(&node_, "navigate_to_pose");
 }
 
 NavigateToPoseCpp::ResultFuture NavigateToPoseCpp::send_goal(
@@ -17,7 +17,7 @@ NavigateToPoseCpp::ResultFuture NavigateToPoseCpp::send_goal(
 
   if (!action_client_->wait_for_action_server(server_timeout_)) {
     RCLCPP_ERROR(
-      get_logger(), "Servidor de acción 'navigate_to_pose' no disponible tras %ld s",
+      node_.get_logger(), "Servidor de acción 'navigate_to_pose' no disponible tras %ld s",
       static_cast<long>(server_timeout_.count()));
     result_promise_.set_value(rclcpp_action::ResultCode::UNKNOWN);
     return future;
@@ -47,11 +47,11 @@ NavigateToPoseCpp::ResultFuture NavigateToPoseCpp::send_goal(
 void NavigateToPoseCpp::goal_response_callback(const GoalHandle::SharedPtr & goal_handle)
 {
   if (!goal_handle) {
-    RCLCPP_ERROR(get_logger(), "Goal rechazado por el servidor");
+    RCLCPP_ERROR(node_.get_logger(), "Goal rechazado por el servidor");
     result_promise_.set_value(rclcpp_action::ResultCode::UNKNOWN);
     return;
   }
-  RCLCPP_INFO(get_logger(), "Goal aceptado, esperando resultado...");
+  RCLCPP_INFO(node_.get_logger(), "Goal aceptado, esperando resultado...");
 }
 
 void NavigateToPoseCpp::feedback_callback(
@@ -61,16 +61,17 @@ void NavigateToPoseCpp::feedback_callback(
   // navigation_time lo mide Nav2 con su reloj (tiempo simulado si use_sim_time).
   const rclcpp::Duration elapsed(feedback->navigation_time);
   RCLCPP_INFO_THROTTLE(
-    get_logger(), *get_clock(), 2000, "Tiempo de navegación: %.1f s, restante: %.1f s",
+    node_.get_logger(), *node_.get_clock(), 2000,
+    "Tiempo de navegación: %.1f s, restante: %.1f s",
     elapsed.seconds(), rclcpp::Duration(feedback->estimated_time_remaining).seconds());
 
   if (!cancel_requested_ && elapsed > nav_timeout_) {
-    RCLCPP_WARN(get_logger(), "La navegación tarda demasiado, cancelando goal");
+    RCLCPP_WARN(node_.get_logger(), "La navegación tarda demasiado, cancelando goal");
     cancel_requested_ = true;
     // En C++ el goal handle no tiene cancel(); se cancela a través del cliente.
     action_client_->async_cancel_goal(
       goal_handle, [this](const auto &) {
-        RCLCPP_INFO(get_logger(), "Cancelación solicitada");
+        RCLCPP_INFO(node_.get_logger(), "Cancelación solicitada");
       });
   }
 }
@@ -79,16 +80,16 @@ void NavigateToPoseCpp::result_callback(const GoalHandle::WrappedResult & result
 {
   switch (result.code) {
     case rclcpp_action::ResultCode::SUCCEEDED:
-      RCLCPP_INFO(get_logger(), "Navegación completada");
+      RCLCPP_INFO(node_.get_logger(), "Navegación completada");
       break;
     case rclcpp_action::ResultCode::ABORTED:
-      RCLCPP_ERROR(get_logger(), "Navegación abortada");
+      RCLCPP_ERROR(node_.get_logger(), "Navegación abortada");
       break;
     case rclcpp_action::ResultCode::CANCELED:
-      RCLCPP_WARN(get_logger(), "Navegación cancelada");
+      RCLCPP_WARN(node_.get_logger(), "Navegación cancelada");
       break;
     default:
-      RCLCPP_ERROR(get_logger(), "Código de resultado desconocido");
+      RCLCPP_ERROR(node_.get_logger(), "Código de resultado desconocido");
       break;
   }
   result_promise_.set_value(result.code);

@@ -17,10 +17,17 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(fuga_cpp_navigate_to_pose REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
-add_executable(fuga_agents src/main.cpp src/wall_following_agent.cpp src/wall_follower.cpp src/pledge.cpp)
+# Deteccion de fronteras: sin dependencias de ROS, en su propia libreria para poder testearla
+add_library(fuga_frontiers STATIC src/frontiers.cpp)
+target_include_directories(fuga_frontiers PUBLIC include)
+
+add_executable(fuga_agents src/main.cpp src/wall_following_agent.cpp src/wall_follower.cpp src/pledge.cpp src/frontier_explorer.cpp)
 target_include_directories(fuga_agents PUBLIC include)
-target_link_libraries(fuga_agents PUBLIC rclcpp::rclcpp sensor_msgs::sensor_msgs geometry_msgs::geometry_msgs nav_msgs::nav_msgs)
+target_link_libraries(fuga_agents PUBLIC rclcpp::rclcpp sensor_msgs::sensor_msgs geometry_msgs::geometry_msgs nav_msgs::nav_msgs fuga_cpp_navigate_to_pose::navigate_to_pose fuga_frontiers tf2::tf2 tf2_ros::tf2_ros)
 
 install(TARGETS fuga_agents RUNTIME DESTINATION lib/${PROJECT_NAME})
 
@@ -35,6 +42,10 @@ if(BUILD_TESTING)
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_frontiers test/test_frontiers.cpp)
+  target_link_libraries(test_frontiers fuga_frontiers)
 endif()
 
 ament_package()

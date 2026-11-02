@@ -6,7 +6,8 @@
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  const auto node = std::make_shared<fuga_cpp_navigate_to_pose::NavigateToPoseCpp>();
+  const auto node = std::make_shared<rclcpp::Node>("navigate_to_pose_cpp");
+  fuga_cpp_navigate_to_pose::NavigateToPoseCpp navigator(*node);
 
   geometry_msgs::msg::PoseStamped pose{};
   pose.header.frame_id = "map";
@@ -14,7 +15,7 @@ int main(int argc, char * argv[])
   pose.pose.position.x = 0.0;
   pose.pose.position.y = 0.0;
 
-  const auto result = node->send_goal(pose);
+  const auto result = navigator.send_goal(pose);
   // Hace spin hasta que termine la navegación (o hasta Ctrl+C).
   const auto spin_rc = rclcpp::spin_until_future_complete(node, result);
 
