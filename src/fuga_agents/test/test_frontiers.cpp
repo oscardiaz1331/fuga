@@ -9,6 +9,8 @@
 using fuga_agents::choose_frontier;
 using fuga_agents::find_frontiers;
 using fuga_agents::Frontier;
+using fuga_agents::has_frontier_near;
+using fuga_agents::path_distances;
 
 namespace
 {
@@ -43,6 +45,15 @@ std::vector<Frontier> frontiers_of(const Map & map, int min_size = 1)
 bool contains(const Frontier & f, int x, int y, int width)
 {
   return std::find(f.cells.begin(), f.cells.end(), y * width + x) != f.cells.end();
+}
+
+// choose_frontier con las distancias por camino desde el robot en (robot_x, robot_y)
+std::optional<Frontier> choose_from(const Map & map, const std::vector<Frontier> & fs,
+                                    int robot_x, int robot_y,
+                                    double distance_weight = 1.0, double size_weight = 0.5)
+{
+  const auto distances = path_distances(map.width, map.height, map.data, robot_x, robot_y);
+  return choose_frontier(fs, distances, map.width, distance_weight, size_weight);
 }
 } // namespace
 
@@ -181,10 +192,73 @@ TEST(FindFrontiers, ObjetivoEsCeldaLibreDelGrupoAunqueElCentroideCaigaEnPared) {
   EXPECT_EQ(map.at(f.target_x, f.target_y), 0);
 }
 
+// ---------------------------------------------------------------- has_frontier_near
+
+TEST(HasFrontierNear, CentroEnFronteraEsTrue) {
+  const Map map = parse({
+    "#####",
+    "#...?",
+    "#####",
+  });
+  EXPECT_TRUE(has_frontier_near(map.width, map.height, map.data, 3, 1, 0));
+}
+
+TEST(HasFrontierNear, FronteraDesplazadaDentroDelRadio) {
+  // El objetivo era (1,1), pero el robot descubrio esa zona y la frontera esta en (3,1)
+  const Map map = parse({
+    "#####",
+    "#...?",
+    "#####",
+  });
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, 1, 1, 1));
+  EXPECT_TRUE(has_frontier_near(map.width, map.height, map.data, 1, 1, 2));
+}
+
+TEST(HasFrontierNear, RadioEsVentanaCuadrada) {
+  // (3,1) esta en diagonal a distancia 2 de (1,3): dentro de la ventana de radio 2
+  const Map map = parse({
+    "#####",
+    "#...?",
+    "#...#",
+    "#...#",
+    "#####",
+  });
+  EXPECT_TRUE(has_frontier_near(map.width, map.height, map.data, 1, 3, 2));
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, 1, 3, 1));
+}
+
+TEST(HasFrontierNear, FronteraDesaparecidaEsFalse) {
+  const Map map = parse({
+    "#####",
+    "#...#",
+    "#####",
+  });
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, 2, 1, 10));
+}
+
+TEST(HasFrontierNear, CentroFueraDelGridEsFalse) {
+  // Puede pasar si el mapa cambia de origen o de tamano entre ticks
+  const Map map = parse({
+    "?..",
+  });
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, -1, 0, 5));
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, 3, 0, 5));
+  EXPECT_FALSE(has_frontier_near(map.width, map.height, map.data, 1, 1, 5));
+}
+
+TEST(HasFrontierNear, VentanaSeRecortaEnLosBordes) {
+  // Radio mucho mayor que el mapa: no debe leer fuera del grid
+  const Map map = parse({
+    "?.",
+    "..",
+  });
+  EXPECT_TRUE(has_frontier_near(map.width, map.height, map.data, 1, 1, 100));
+}
+
 // ---------------------------------------------------------------- choose_frontier
 
 TEST(ChooseFrontier, SinFronterasDevuelveNullopt) {
-  EXPECT_FALSE(choose_frontier({}, 0, 0).has_value());
+  EXPECT_FALSE(choose_frontier({}, {}, 0).has_value());
 }
 
 TEST(ChooseFrontier, AIgualTamanoEligeLaMasCercana) {
@@ -195,17 +269,18 @@ TEST(ChooseFrontier, AIgualTamanoEligeLaMasCercana) {
   });
   const auto fs = frontiers_of(map);
 
-  const auto izquierda = choose_frontier(fs, 2, 1);
+  const auto izquierda = choose_from(map, fs, 2, 1);
   ASSERT_TRUE(izquierda.has_value());
   EXPECT_EQ(izquierda->target_x, 1);
 
-  const auto derecha = choose_frontier(fs, 4, 1);
+  const auto derecha = choose_from(map, fs, 4, 1);
   ASSERT_TRUE(derecha.has_value());
   EXPECT_EQ(derecha->target_x, 5);
 }
 
 TEST(ChooseFrontier, ElTamanoPuedeCompensarLaDistancia) {
-  // Robot en (5,3): la celda suelta (5,4) esta a 1, la linea grande (centro (3,1)) a ~2.83.
+  // Robot en (5,3): la celda suelta (5,4) esta a 1 por camino; la linea grande
+  // (objetivo (3,1)) a 4 (2 a la izquierda y 2 arriba, sin diagonales).
   const Map map = parse({
     "???????",
     "#.....#",
@@ -217,14 +292,102 @@ TEST(ChooseFrontier, ElTamanoPuedeCompensarLaDistancia) {
   const auto fs = frontiers_of(map);
   ASSERT_EQ(fs.size(), 2u);
 
-  // Pesos por defecto (1.0, 0.5): grande 2.83 - 2.5 = 0.33 < pequena 1 - 0.5 = 0.5
-  const auto por_defecto = choose_frontier(fs, 5, 3);
+  // Pesos por defecto (1.0, 0.5): pequena 1 - 0.5 = 0.5 < grande 4 - 2.5 = 1.5
+  const auto por_defecto = choose_from(map, fs, 5, 3);
   ASSERT_TRUE(por_defecto.has_value());
-  EXPECT_EQ(por_defecto->cells.size(), 5u);
+  EXPECT_EQ(por_defecto->target_x, 5);
+  EXPECT_EQ(por_defecto->target_y, 4);
 
-  // Sin peso al tamano, gana la mas cercana
-  const auto solo_distancia = choose_frontier(fs, 5, 3, 1.0, 0.0);
-  ASSERT_TRUE(solo_distancia.has_value());
-  EXPECT_EQ(solo_distancia->target_x, 5);
-  EXPECT_EQ(solo_distancia->target_y, 4);
+  // Con mas peso al tamano: grande 4 - 5 = -1 < pequena 1 - 1 = 0
+  const auto por_tamano = choose_from(map, fs, 5, 3, 1.0, 1.0);
+  ASSERT_TRUE(por_tamano.has_value());
+  EXPECT_EQ(por_tamano->cells.size(), 5u);
+}
+
+TEST(ChooseFrontier, UsaLaDistanciaPorCaminoNoEnLineaRecta) {
+  // Robot en (2,1). (0,1) esta a 2 en linea recta pero hay una pared en medio:
+  // por camino son 6 (bajar, rodear y subir). (6,1) esta a 4 por el pasillo.
+  const Map map = parse({
+    "?#######",
+    ".#.....?",
+    ".#.###.#",
+    ".......#",
+    "########",
+  });
+  const auto fs = frontiers_of(map);
+  ASSERT_EQ(fs.size(), 2u);
+
+  const auto elegida = choose_from(map, fs, 2, 1, 1.0, 0.0);
+  ASSERT_TRUE(elegida.has_value());
+  EXPECT_EQ(elegida->target_x, 6);
+  EXPECT_EQ(elegida->target_y, 1);
+}
+
+TEST(ChooseFrontier, IgnoraFronterasSinCamino) {
+  // La frontera (3,1) esta al otro lado de una pared, sin camino por celdas libres
+  const Map map = parse({
+    "#####",
+    "#.#.?",
+    "#####",
+  });
+  const auto fs = frontiers_of(map);
+  ASSERT_EQ(fs.size(), 1u);
+  EXPECT_FALSE(choose_from(map, fs, 1, 1).has_value());
+}
+
+// ---------------------------------------------------------------- path_distances
+
+TEST(PathDistances, PasilloRecto) {
+  const Map map = parse({
+    ".....",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, 1, 0);
+  EXPECT_EQ(d, (std::vector<int>{1, 0, 1, 2, 3}));
+}
+
+TEST(PathDistances, LasParedesObliganARodear) {
+  const Map map = parse({
+    ".#.",
+    "...",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, 0, 0);
+  EXPECT_EQ(d[0 * 3 + 2], 4);   // (2,0): baja, dos a la derecha y sube
+  EXPECT_EQ(d[0 * 3 + 1], -1);  // la pared no se alcanza
+}
+
+TEST(PathDistances, LoDesconocidoNoSeAtraviesa) {
+  const Map map = parse({
+    "..?..",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, 0, 0);
+  EXPECT_EQ(d[1], 1);
+  EXPECT_EQ(d[2], -1);
+  EXPECT_EQ(d[3], -1);
+}
+
+TEST(PathDistances, NoCortaEsquinasEnDiagonal) {
+  // Dos paredes que solo se tocan por la esquina cierran el paso
+  const Map map = parse({
+    ".#",
+    "#.",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, 0, 0);
+  EXPECT_EQ(d[1 * 2 + 1], -1);
+}
+
+TEST(PathDistances, ElInicioSeExpandeAunqueNoSeaLibre) {
+  // SLAM puede marcar como pared o desconocida la celda donde esta el robot
+  const Map map = parse({
+    "#..",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, 0, 0);
+  EXPECT_EQ(d, (std::vector<int>{0, 1, 2}));
+}
+
+TEST(PathDistances, InicioFueraDelGridNoAlcanzaNada) {
+  const Map map = parse({
+    "...",
+  });
+  const auto d = path_distances(map.width, map.height, map.data, -1, 0);
+  EXPECT_EQ(d, (std::vector<int>{-1, -1, -1}));
 }

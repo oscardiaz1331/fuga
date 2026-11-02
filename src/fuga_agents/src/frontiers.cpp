@@ -1,5 +1,6 @@
 #include "fuga_agents/frontiers.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <queue>
@@ -105,16 +106,74 @@ std::vector<Frontier> find_frontiers(int width, int height,
   return frontiers;
 }
 
+bool has_frontier_near(int width, int height, std::span<const int8_t> grid,
+                       int cx, int cy, int radius)
+{
+  if (cx < 0 || cx >= width || cy < 0 || cy >= height) {
+    return false;
+  }
+  const int x_min = std::max(0, cx - radius);
+  const int x_max = std::min(width - 1, cx + radius);
+  const int y_min = std::max(0, cy - radius);
+  const int y_max = std::min(height - 1, cy + radius);
+  for (int y = y_min; y <= y_max; ++y) {
+    for (int x = x_min; x <= x_max; ++x) {
+      if (is_frontier_cell(x, y, width, height, grid)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+std::vector<int> path_distances(int width, int height, std::span<const int8_t> grid,
+                                int start_x, int start_y)
+{
+  std::vector<int> distances(grid.size(), -1);
+  if (start_x < 0 || start_x >= width || start_y < 0 || start_y >= height) {
+    return distances;
+  }
+
+  std::queue<int> queue;
+  const int start = start_y * width + start_x;
+  distances[start] = 0;
+  queue.push(start);
+
+  constexpr int kDx[] = {1, -1, 0, 0};
+  constexpr int kDy[] = {0, 0, 1, -1};
+  while (!queue.empty()) {
+    const int current = queue.front();
+    queue.pop();
+    const int cx = current % width;
+    const int cy = current / width;
+    for (int i = 0; i < 4; ++i) {
+      const int nx = cx + kDx[i];
+      const int ny = cy + kDy[i];
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+        continue;
+      }
+      const int neighbor = ny * width + nx;
+      if (distances[neighbor] == -1 && grid[neighbor] == kFree) {
+        distances[neighbor] = distances[current] + 1;
+        queue.push(neighbor);
+      }
+    }
+  }
+  return distances;
+}
+
 std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
-                                        int robot_x, int robot_y,
+                                        std::span<const int> distances, int width,
                                         double distance_weight,
                                         double size_weight)
 {
   std::optional<Frontier> best;
   double best_cost = std::numeric_limits<double>::max();
   for (const Frontier & frontier : frontiers) {
-    const double distance = std::hypot(frontier.target_x - robot_x,
-                                       frontier.target_y - robot_y);
+    const int distance = distances[frontier.target_y * width + frontier.target_x];
+    if (distance < 0) {
+      continue;  // sin camino desde el robot
+    }
     const double cost = distance_weight * distance -
                         size_weight * static_cast<double>(frontier.cells.size());
     if (cost < best_cost) {

@@ -87,11 +87,13 @@ def generate_launch_description():
     declare_nav2 = DeclareLaunchArgument(
         'nav2', default_value='false',
         description='true para lanzar Nav2 (necesita slam:=true). Usar con '
-                    'agent:=none: el agente tambien publica en /cmd_vel')
+                    'agent:=frontier_explorer o agent:=none: wall_follower y '
+                    'pledge tambien publican en /cmd_vel')
     declare_agent = DeclareLaunchArgument(
         'agent', default_value='wall_follower',
-        description='wall_follower, pledge, o none para no lanzar agente ni '
-                    'juez (p. ej. para mover el robot con teleop)')
+        description='wall_follower, pledge, frontier_explorer (necesita '
+                    'nav2:=true) o none para no lanzar agente ni juez (p. ej. '
+                    'para mover el robot con teleop)')
     declare_results = DeclareLaunchArgument(
         'results',
         default_value=PathJoinSubstitution([LaunchConfiguration('folder'),
@@ -143,7 +145,8 @@ def generate_launch_description():
     agent_node = Node(
         package='fuga_agents', executable='fuga_agents',
         arguments=[agent],
-        # use_sim_time: el agente usa now() (exit_timeout)
+        # use_sim_time: el agente usa now() (exit_timeout) y frontier_explorer
+        # un timer con el reloj del nodo
         parameters=[{'use_sim_time': True}],
         output='screen')
     judge = Node(

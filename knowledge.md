@@ -195,12 +195,14 @@ ros2 launch fuga_bringup bringup.launch.py agent:=pledge          # otro agente
 ros2 launch fuga_bringup bringup.launch.py difficulty:=5 seed:=42  # mismo laberinto siempre
 ros2 launch fuga_bringup bringup.launch.py slam:=false            # sin SLAM (agentes N1)
 ros2 launch fuga_bringup bringup.launch.py agent:=none            # sin agente ni juez (teleop)
+ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=frontier_explorer  # explorar con SLAM + Nav2
 ros2 launch fuga_bringup bringup.launch.py --show-args            # todos los argumentos
 ```
 
 Argumentos: los de `maze.launch.py` (`folder`, `width`, `height`, `difficulty`,
 `seed`, `start_x`, `start_y`, `rtf`, `step`, `headless`), `rviz` de `spawn.launch.py`, `slam` (por defecto `true`),
-`agent` (`wall_follower` por defecto, `pledge` o `none`) y `results` (CSV del juez,
+`agent` (`wall_follower` por defecto, `pledge`, `frontier_explorer` o `none`;
+`frontier_explorer` necesita `nav2:=true`), `nav2` (por defecto `false`) y `results` (CSV del juez,
 por defecto `<folder>/results.csv`).
 `start_x`/`start_y` es la celda de inicio (por defecto `0 0`): el bringup se la pasa
 a `maze2world`, que mide desde ella las distancias de `meta.yaml`, y coloca el robot
@@ -259,8 +261,10 @@ ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist '{}'
 # Mas comodo: teclado (publica en /cmd_vel)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-# Terminal 4: agente. El primer argumento elige cual: wall_follower (por defecto) o pledge
+# Terminal 4: agente. El primer argumento elige cual: wall_follower (por defecto), pledge
+# o frontier_explorer (este necesita SLAM y Nav2 ya lanzados)
 ros2 run fuga_agents fuga_agents pledge --ros-args -p use_sim_time:=true
+ros2 run fuga_agents fuga_agents frontier_explorer --ros-args -p use_sim_time:=true
 ros2 run fuga_agents fuga_agents wall_follower --ros-args -p use_sim_time:=true -p side:=left -p velocity:=0.2
 
 # Terminal 5: juez, a la vez que el agente. Al terminar escribe el CSV y sale

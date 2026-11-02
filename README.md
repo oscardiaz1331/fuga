@@ -24,8 +24,11 @@ va construyendo slam_toolbox; en rojo, las lecturas del lidar sobre los muros.*
 - **Robot** (`fuga_description`): diferencial con lidar 2D de 360° (10 m), IMU y pose
   real (*ground truth*) para el juez. Incluye el puente Gazebo ↔ ROS y la
   configuración de RViz.
-- **Agentes** (`fuga_agents`): seguidor de pared (mano derecha o izquierda) y Pledge,
-  elegibles por argumento.
+- **Agentes** (`fuga_agents`): seguidor de pared (mano derecha o izquierda), Pledge y
+  explorador de fronteras, elegibles por argumento. El explorador busca en el mapa de
+  SLAM las fronteras (celdas libres junto a zonas desconocidas), elige una por
+  tamaño y distancia por camino (BFS por celdas libres, rodeando las paredes) y
+  manda el robot con Nav2.
 - **SLAM** (`fuga_slam`): slam_toolbox configurado para este robot y `map_iou.py`,
   que compara el mapa de SLAM con el PGM de referencia (IoU, precisión y recall).
 - **Juez** (`fuga_eval`): decide si el robot ha salido, en cuánto tiempo y con qué
@@ -34,7 +37,9 @@ va construyendo slam_toolbox; en rojo, las lecturas del lidar sobre los muros.*
   al robot (radio y alturas del `collision_monitor`).
 - **Clientes de Nav2** (`fuga_py_navigate_to_pose` y `fuga_cpp_navigate_to_pose`):
   nodos Python y C++ que mandan un goal a `NavigateToPose`, imprimen el feedback y
-  cancelan si tarda demasiado.
+  cancelan si tarda demasiado. La clase C++ (`NavigateToPoseCpp`) también se usa como
+  librería: devuelve un future por goal y permite cancelarlo; la usa el explorador de
+  fronteras.
 - **Bringup** (`fuga_bringup`): un solo launch para mundo, robot, SLAM, Nav2, agente
   y juez. Se cierra solo cuando el juez termina, así que se puede lanzar en bucle.
 
@@ -44,7 +49,7 @@ va construyendo slam_toolbox; en rojo, las lecturas del lidar sobre los muros.*
 tools/maze_gen/          librería de laberintos (C++ puro)
 src/maze_gen/            paquete maze_export: maze2world + maze.launch.py
 src/fuga_description/    robot (xacro), puente, RViz, spawn.launch.py
-src/fuga_agents/         agentes (wall_follower, pledge)
+src/fuga_agents/         agentes (wall_follower, pledge, frontier_explorer)
 src/fuga_slam/           parámetros y launch de slam_toolbox, map_iou.py
 src/fuga_eval/           juez (librería + judge_node)
 src/fuga_nav/            parámetros y launch de Nav2
@@ -102,13 +107,24 @@ ros2 launch fuga_bringup bringup.launch.py --show-args                    # todo
 ros2 launch fuga_bringup bringup.launch.py agent:=none
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-# Con Nav2 (siempre con agent:=none: el agente también publica en /cmd_vel).
-# Cuando el log diga "Managed nodes are active", el cliente lleva el robot al
-# origen del mapa, que es la casilla de salida
+# Explorador de fronteras: necesita SLAM y Nav2. No publica en /cmd_vel (mueve
+# el robot a través de Nav2), así que es el único agente compatible con nav2:=true
+ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=frontier_explorer
+
+# Nav2 con un cliente a mano (con agent:=none: wall_follower y pledge también
+# publican en /cmd_vel). Cuando el log diga "Managed nodes are active", el
+# cliente lleva el robot al origen del mapa, que es la casilla de salida
 ros2 launch fuga_bringup bringup.launch.py nav2:=true agent:=none
 ros2 run fuga_py_navigate_to_pose navigate_to_pose
 ros2 run fuga_cpp_navigate_to_pose fuga_cpp_navigate_to_pose   # o la versión C++
 ```
+
+El explorador decide cada 500 ms de tiempo simulado (el timer usa el reloj del
+nodo, no el real, así que se adapta a `rtf`). Mientras Nav2 navega, comprueba que
+siga habiendo frontera cerca del objetivo (0,5 m); si ha desaparecido (el lidar ya
+ha descubierto esa zona), cancela el goal y elige otra. Cuando Nav2 termina, elige
+otra frontera. Las fronteras a las que Nav2 no ha podido llegar no se vuelven a
+intentar; las que cancela el propio explorador, sí.
 
 `difficulty` va de 0 a 10: con 10 el laberinto es perfecto (un solo camino, sin
 bucles); cuanto más bajo, más bucles e islas, que es justo donde fallan los
@@ -152,7 +168,7 @@ cambian con esto. El factor real se ve con `gz topic -e -t /stats`
 ## Tests
 
 ```bash
-colcon test --packages-select maze_gen maze_export fuga_description fuga_slam fuga_eval
+colcon test --packages-select maze_gen maze_export fuga_description fuga_slam fuga_eval fuga_agents
 colcon test-result --verbose
 ```
 
@@ -175,8 +191,13 @@ Hecho:
 - Bringup completo que se cierra solo, para baterías de pruebas.
 - Nav2 sobre el mapa de SLAM y clientes de `NavigateToPose` en Python y C++: el
   robot vuelve a la casilla de salida.
+- Explorador de fronteras con distancia por camino (BFS), cambio de rumbo cuando el
+  objetivo deja de ser frontera, y tests de la detección, el BFS y la elección.
 
 Pendiente:
+- Explorador de fronteras: tener en cuenta el radio del robot en el BFS (ahora
+  puede contar huecos por los que el robot no cabe; Nav2 falla y la frontera se
+  descarta).
 - Ajustar velocidades y costmaps de Nav2 a las celdas de 1 m (siguen los valores
   por defecto: hasta 0.5 m/s).
 - Tests del juez (`Judge`, `PathLength`, CSV y `meta`).
