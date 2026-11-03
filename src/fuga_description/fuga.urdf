@@ -28,6 +28,19 @@
       <inertia ixx="0.004866666666666667" ixy="0" ixz="0" iyy="0.011016666666666668" iyz="0" izz="0.014683333333333333"/>
     </inertial>
   </link>
+  <!-- base_footprint: proyeccion de base_link en el suelo (REP-120), el frame
+       que Nav2 usa por defecto en collision_monitor y docking_server. Solo es un
+       frame, sin geometria: robot_state_publisher lo publica en TF y al convertir
+       a SDF desaparece. Va como hijo de base_link y no como raiz para no cambiar
+       odom -> base_link de DiffDrive ni el base_frame de SLAM.
+       z = -wheel_r: el eje de las ruedas esta en z = 0 de base_link, asi que el
+       suelo queda un radio de rueda por debajo -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_footprint"/>
+    <origin xyz="0 0 -0.04"/>
+  </joint>
   <link name="left_wheel">
     <!-- En URDF el cilindro tiene su eje en z; se gira pi/2 en roll para
            tumbarlo y que su eje quede en y, que es el eje de giro de la rueda -->
@@ -182,6 +195,55 @@
       </lidar>
     </sensor>
   </gazebo>
+  <!-- Solo visual, como el lidar: no participa en la fisica -->
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.06 0.025"/>
+      </geometry>
+    </visual>
+  </link>
+  <!-- En la cara delantera del chasis (x = body_x/2) y a z = 0, por debajo
+       del plano del lidar para no taparle el barrido hacia delante -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.125 0 0"/>
+  </joint>
+  <!-- Frame optico (z delante, x derecha, y abajo): el que esperan los
+       mensajes Image/CameraInfo de ROS. Sin geometria, solo TF -->
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_frame"/>
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966"/>
+  </joint>
+  <gazebo reference="camera_link">
+    <sensor name="camera_sensor" type="camera">
+      <always_on>1</always_on>
+      <update_rate>10</update_rate>
+      <visualize>true</visualize>
+      <topic>camera/image</topic>
+      <gz_frame_id>camera_optical_frame</gz_frame_id>
+      <camera>
+        <horizontal_fov>1.5</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.05</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
   <!-- IMU: link vacio, solo un frame de referencia para las medidas del sensor.
        Va en el centro de base_link para que las aceleraciones y velocidades
        angulares que mida correspondan al cuerpo del robot sin brazo de palanca -->
@@ -239,6 +301,10 @@
          ros_gz_bridge (gz.msgs.Model -> sensor_msgs/msg/JointState) -->
     <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
       <topic>joint_states</topic>
+      <!-- Sin update_rate publica en cada paso de fisica (1000 Hz con pasos de
+           1 ms): el puente y robot_state_publisher se comen CPU que frena la
+           simulacion acelerada. 30 Hz, como la odometria, basta para RViz -->
+      <update_rate>30</update_rate>
     </plugin>
     <!-- PosePublisher: publica la pose real del robot en el mundo (ground truth),
          sin la deriva de la odometria de DiffDrive. La usa el juez para medir
