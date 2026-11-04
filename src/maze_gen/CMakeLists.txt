@@ -13,17 +13,19 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(maze_gen REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
 # El paquete se llama maze_export para no chocar con maze_gen (la libreria)
 add_library(maze_export_lib src/export.cpp)
 target_include_directories(maze_export_lib PUBLIC include)
-target_link_libraries(maze_export_lib PUBLIC maze_gen::maze_gen rclcpp::rclcpp)
+target_link_libraries(maze_export_lib PUBLIC maze_gen::maze_gen rclcpp::rclcpp ament_index_cpp::ament_index_cpp)
 
 add_executable(maze2world src/maz2world.cpp)
 target_link_libraries(maze2world PRIVATE maze_export_lib)
 
 install(TARGETS maze2world RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY textures DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
