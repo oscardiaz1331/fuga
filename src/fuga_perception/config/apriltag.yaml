@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    image_transport: raw
+    family: 36h11
+    size: 0.2            # lado del tag en metros (solo el cuadrado negro, sin el margen blanco)
+    max_hamming: 0
+    detector:
+      threads: 1
+      decimate: 1.0      # tu cámara es de 320x240: mejor no reducir más
+      blur: 0.0
+      refine: true
+      sharpening: 0.25
+    pose_estimation_method: "pnp"
