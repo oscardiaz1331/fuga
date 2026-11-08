@@ -1,12 +1,15 @@
 #include "fuga_agents/pledge.hpp"
-#include "geometry_msgs/msg/twist.hpp"
+
 #include <algorithm>
+#include <memory>
+
+#include "geometry_msgs/msg/twist.hpp"
 
 fuga_agents::Pledge::Pledge()
 : WallFollowingAgent("pledge")
 {
   subscription_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "odom", 10, [this](const nav_msgs::msg::Odometry::SharedPtr odometry) {
+    "odom", 10, [this](const nav_msgs::msg::Odometry::SharedPtr odometry) {
       const float yaw = yaw_from(odometry->pose.pose.orientation);
       if (has_yaw_) {
         turned_angle_ += normalize(yaw - last_yaw_);
@@ -14,25 +17,29 @@ fuga_agents::Pledge::Pledge()
         has_yaw_ = true;
       }
       last_yaw_ = yaw;
-      });
+    });
   auto callback = [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-      publisher_->publish(decide(msg));
-    };
-  subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-      "scan", 10, callback);
+    laser_msg_ = msg;
+    step();
+  };
+  subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>("scan", 10, callback);
+}
+
+void fuga_agents::Pledge::do_step()
+{
+  publisher_->publish(decide(laser_msg_));
 }
 
 geometry_msgs::msg::Twist fuga_agents::Pledge::go_straight()
 {
   geometry_msgs::msg::Twist twist;
   twist.linear.x = params_.velocity;
-  twist.angular.z = std::clamp(-kK * turned_angle_, -params_.max_angular,
-                               params_.max_angular);
+  twist.angular.z = std::clamp(-kK * turned_angle_, -params_.max_angular, params_.max_angular);
   return twist;
 }
 
-geometry_msgs::msg::Twist
-fuga_agents::Pledge::decide(const sensor_msgs::msg::LaserScan::SharedPtr msg)
+geometry_msgs::msg::Twist fuga_agents::Pledge::decide(
+  const sensor_msgs::msg::LaserScan::SharedPtr msg)
 {
   const float away = -derived_.side_sign * turned_angle_;
   switch (mode_) {
@@ -58,7 +65,7 @@ fuga_agents::Pledge::decide(const sensor_msgs::msg::LaserScan::SharedPtr msg)
       }
       return follow_wall(msg);
   }
-  RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 1000,
-                        "Unknown mode %d, stopping", static_cast<int>(mode_));
+  RCLCPP_ERROR_THROTTLE(
+    get_logger(), *get_clock(), 1000, "Unknown mode %d, stopping", static_cast<int>(mode_));
   return geometry_msgs::msg::Twist{};
 }

@@ -426,3 +426,92 @@ TEST(PathDistances, InicioFueraDelGridNoAlcanzaNada) {
   const auto d = path_distances(map.width, map.height, map.data, -1, 0);
   EXPECT_EQ(d, (std::vector<int>{-1, -1, -1}));
 }
+
+// ---------------------------------------------------------------- find_exits
+
+std::vector<fuga_agents::ExitCandidate> exits_of(const Map & map, int min_size = 1)
+{
+  return fuga_agents::find_exits(map.width, map.height, map.data, min_size);
+}
+
+TEST(FindExits, SinMurosNoHaySalidas) {
+  const Map map = parse({
+    "...",
+    "...",
+  });
+  EXPECT_TRUE(exits_of(map).empty());
+}
+
+TEST(FindExits, CajaCerradaNoTieneSalidas) {
+  const Map map = parse({
+    "####",
+    "#..#",
+    "####",
+  });
+  EXPECT_TRUE(exits_of(map).empty());
+}
+
+TEST(FindExits, HuecoAlSurConLibreFuera) {
+  // Fila y = 0 primero: el hueco esta en la fila 1 y el lidar ha visto la fila 0
+  const Map map = parse({
+    "??...???",
+    "##...###",
+    "#......#",
+    "########",
+  });
+  const auto exits = exits_of(map);
+  ASSERT_EQ(exits.size(), 1u);
+  EXPECT_EQ(exits[0].door_x, 3);  // centro de x = 2..4
+  EXPECT_EQ(exits[0].door_y, 0);
+  EXPECT_EQ(exits[0].out_dx, 0);
+  EXPECT_EQ(exits[0].out_dy, -1);
+  EXPECT_EQ(exits[0].size, 3);
+}
+
+TEST(FindExits, HuecoAlEste) {
+  const Map map = parse({
+    "#####?",
+    "#...#?",
+    "#.....",
+    "#...#?",
+    "#####?",
+  });
+  const auto exits = exits_of(map);
+  ASSERT_EQ(exits.size(), 1u);
+  EXPECT_EQ(exits[0].door_x, 5);
+  EXPECT_EQ(exits[0].door_y, 2);
+  EXPECT_EQ(exits[0].out_dx, 1);
+  EXPECT_EQ(exits[0].out_dy, 0);
+}
+
+TEST(FindExits, HuecoSinVerFueraNoEsSalida) {
+  // Hueco en el muro pero fuera todo desconocido: puede ser muro que SLAM no ha visto
+  const Map map = parse({
+    "????????",
+    "##...###",
+    "#......#",
+    "########",
+  });
+  EXPECT_TRUE(exits_of(map).empty());
+}
+
+TEST(FindExits, DescartaGruposPequenos) {
+  const Map map = parse({
+    "#####?",
+    "#...#?",
+    "#.....",
+    "#...#?",
+    "#####?",
+  });
+  EXPECT_TRUE(exits_of(map, 3).empty());
+}
+
+TEST(FindExits, DosSalidasSonDosCandidatos) {
+  const Map map = parse({
+    "?..???..?",
+    "#..###..#",
+    "#.......#",
+    "#########",
+  });
+  EXPECT_EQ(exits_of(map).size(), 2u);
+}

@@ -1,6 +1,7 @@
 #include "fuga_agents/frontiers.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <queue>
@@ -11,6 +12,12 @@ namespace
 {
 constexpr int8_t kFree = 0;
 constexpr int8_t kUnknown = -1;
+
+// Cualquier valor que no sea libre ni desconocido, igual que en has_clearance
+bool is_occupied(int8_t value)
+{
+  return value != kFree && value != kUnknown;
+}
 
 bool is_frontier_cell(int x, int y, int width, int height,
                       std::span<const int8_t> grid)
@@ -40,8 +47,7 @@ bool has_clearance(int x, int y, int width, int height,
       {
         continue;
       }
-      const int8_t value = grid[ny * width + nx];
-      if (value != kFree && value != kUnknown) {
+      if (is_occupied(grid[ny * width + nx])) {
         return false;
       }
     }
@@ -215,5 +221,106 @@ std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
     }
   }
   return best;
+}
+
+std::vector<ExitCandidate> find_exits(int width, int height, std::span<const int8_t> grid,
+                                      int min_size)
+{
+  // Caja de las celdas ocupadas: su borde es el muro exterior
+  int x_min = width, x_max = -1, y_min = height, y_max = -1;
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      if (is_occupied(grid[y * width + x])) {
+        x_min = std::min(x_min, x);
+        x_max = std::max(x_max, x);
+        y_min = std::min(y_min, y);
+        y_max = std::max(y_max, y);
+      }
+    }
+  }
+  if (x_max < 0) {
+    return {};  // Sin muros no hay laberinto del que salir
+  }
+  const auto free_outside = [&](int x, int y) {
+      return grid[y * width + x] == kFree &&
+             (x < x_min || x > x_max || y < y_min || y > y_max);
+    };
+
+  std::vector<ExitCandidate> exits;
+  std::vector<bool> visited(grid.size(), false);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const int start = y * width + x;
+      if (visited[start] || !free_outside(x, y)) {
+        continue;
+      }
+
+      // Celdas del grupo pegadas a cada lado de la caja: suma de la coordenada a lo
+      // largo del lado (para la media) y cuantas son
+      struct Side {
+        int out_dx, out_dy;
+        long sum = 0;
+        int count = 0;
+      };
+      std::array<Side, 4> sides{{{0, -1}, {0, 1}, {-1, 0}, {1, 0}}};  // S, N, O, E
+      int size = 0;
+
+      std::queue<int> queue;
+      queue.push(start);
+      visited[start] = true;
+      while (!queue.empty()) {
+        const int current = queue.front();
+        queue.pop();
+        ++size;
+        const int cx = current % width;
+        const int cy = current / width;
+        const bool in_x = cx >= x_min && cx <= x_max;
+        const bool in_y = cy >= y_min && cy <= y_max;
+        if (in_x && cy == y_min - 1) {sides[0].sum += cx; ++sides[0].count;}
+        if (in_x && cy == y_max + 1) {sides[1].sum += cx; ++sides[1].count;}
+        if (in_y && cx == x_min - 1) {sides[2].sum += cy; ++sides[2].count;}
+        if (in_y && cx == x_max + 1) {sides[3].sum += cy; ++sides[3].count;}
+
+        for (int dy = -1; dy <= 1; ++dy) {
+          for (int dx = -1; dx <= 1; ++dx) {
+            const int nx = cx + dx;
+            const int ny = cy + dy;
+            if ((dx == 0 && dy == 0) || nx < 0 || nx >= width || ny < 0 || ny >= height) {
+              continue;
+            }
+            const int neighbor = ny * width + nx;
+            if (!visited[neighbor] && free_outside(nx, ny)) {
+              visited[neighbor] = true;
+              queue.push(neighbor);
+            }
+          }
+        }
+      }
+
+      // El lado por el que sale el grupo es el que mas celdas toca. Si no toca
+      // ninguno, son celdas sueltas lejos de la caja: no se sabe por donde se sale
+      const Side & side = *std::max_element(
+        sides.begin(), sides.end(),
+        [](const Side & a, const Side & b) {return a.count < b.count;});
+      if (size < min_size || side.count == 0) {
+        continue;
+      }
+      ExitCandidate exit;
+      exit.out_dx = side.out_dx;
+      exit.out_dy = side.out_dy;
+      exit.size = size;
+      const int middle = static_cast<int>(std::lround(
+          static_cast<double>(side.sum) / side.count));
+      if (side.out_dy != 0) {
+        exit.door_x = middle;
+        exit.door_y = side.out_dy < 0 ? y_min - 1 : y_max + 1;
+      } else {
+        exit.door_y = middle;
+        exit.door_x = side.out_dx < 0 ? x_min - 1 : x_max + 1;
+      }
+      exits.push_back(exit);
+    }
+  }
+  return exits;
 }
 } // namespace fuga_agents

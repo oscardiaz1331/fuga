@@ -15,6 +15,7 @@
   <exec_depend>fuga_nav</exec_depend>
   <exec_depend>fuga_agents</exec_depend>
   <exec_depend>fuga_eval</exec_depend>
+  <exec_depend>fuga_perception</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -53,4 +53,24 @@ std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
                                         std::span<const int> distances, int width,
                                         double distance_weight = 1.0,
                                         double size_weight = 0.1);
+
+// Salida vista desde dentro: hueco del muro exterior por el que el lidar ha visto
+// espacio libre fuera del laberinto. Coordenadas en celdas.
+struct ExitCandidate {
+  int door_x = 0;  // celda del hueco, justo fuera de la caja de las celdas ocupadas
+  int door_y = 0;
+  int out_dx = 0;  // hacia fuera: (1, 0) este, (-1, 0) oeste,
+  int out_dy = 0;  // (0, 1) norte (y crece), (0, -1) sur
+  int size = 0;    // celdas libres de fuera que salen por este hueco
+};
+
+// Busca salidas en el mapa. El muro exterior es el borde de la caja que contiene todas
+// las celdas ocupadas. Un rayo del lidar solo deja celdas libres fuera de esa caja si
+// sale por un hueco sin chocar con nada: si chocara, el impacto ampliaria la caja. Asi
+// que cada grupo de celdas libres de fuera (8-conexion, al menos min_size) es una
+// salida, y su puerta es la celda media de las que tocan un lado de la caja.
+// Puede dar falsos positivos (un pasillo mas largo que el alcance del lidar, con sus
+// muros aun sin ver): por eso el agente confirma cada salida con el tag.
+std::vector<ExitCandidate> find_exits(int width, int height, std::span<const int8_t> grid,
+                                      int min_size = 3);
 } // namespace fuga_agents

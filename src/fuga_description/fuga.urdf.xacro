@@ -161,10 +161,15 @@
     <visual><geometry><box size="${cam_x} ${cam_y} ${cam_z}"/></geometry></visual>
   </link>
   <!-- En la cara delantera del chasis (x = body_x/2) y a z = 0, por debajo
-       del plano del lidar para no taparle el barrido hacia delante -->
+       del plano del lidar para no taparle el barrido hacia delante.
+       Inclinada cam_pitch hacia arriba (pitch negativo levanta el morro): a
+       0.04 m del suelo y con ~35 grados de FOV vertical hacia arriba, recta no
+       veia entero el tag de las salidas (hasta 0.37 m de alto) a menos de
+       ~0.47 m. Inclinada lo ve desde ~0.23 m, y a 2 m sigue dentro de la imagen -->
+  <xacro:property name="cam_pitch" value="0.35"/>
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/><child link="camera_link"/>
-    <origin xyz="${body_x/2} 0 0"/>
+    <origin xyz="${body_x/2} 0 0" rpy="0 ${-cam_pitch} 0"/>
   </joint>
 
 <!-- Frame optico (z delante, x derecha, y abajo): el que esperan los

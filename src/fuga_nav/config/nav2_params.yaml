@@ -6,7 +6,7 @@
 # - controller a 10 Hz y MPPI mas ligero: con todo a la vez la simulacion iba a ~0.5x
 # - yaw_goal_tolerance 0.25 -> 3.14 y GoalAngleCritic desactivado: para explorar da
 #   igual hacia donde mire al llegar, y no gira en el sitio
-# - xy_goal_tolerance 0.25 -> 0.40: menos frenado al final de cada goal
+# - xy_goal_tolerance 0.25 -> 0.15: el robot llega de verdad a la frontera
 # - bt_navigator default_server_timeout 20 -> 100 ms: con carga abortaba goals validos
 # Las secciones de amcl y map_server no se usan: el mapa y map -> odom salen de
 # SLAM y navigation_launch.py no arranca esos nodos
@@ -109,9 +109,10 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      # fuga: 0.25 -> 0.40. Para explorar no hace falta precision; dar el goal por
-      # alcanzado antes evita el frenado final y deja al robot mas cerca de su velocidad
-      xy_goal_tolerance: 0.40
+      # fuga: 0.25 -> 0.15. Con 0.40 el goal se daba por alcanzado sin mover el robot;
+      # parado, SLAM no anade scans (minimum_travel_distance), la frontera seguia en el
+      # mapa y frontier_explorer la elegia otra vez: el robot se quedaba quieto en bucle
+      xy_goal_tolerance: 0.15
       # fuga: 0.25 -> 3.14 (cualquier orientacion). Con 0.25 el robot giraba en el sitio
       # en cada frontera; el explorador ya manda el goal mirando en la direccion de avance
       yaw_goal_tolerance: 3.14

@@ -41,7 +41,9 @@ slam_toolbox:
     # General Parameters
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.2
+    # 0.2 -> 0.1: con xy_goal_tolerance 0.15 (nav2_params.yaml), un goal cercano movia
+    # el robot menos de 0.2 m, no se anadia scan, la frontera seguia y se repetia el goal
+    minimum_travel_distance: 0.1
     minimum_travel_heading: 0.15
     check_min_dist_and_heading_precisely: false
     scan_buffer_size: 10

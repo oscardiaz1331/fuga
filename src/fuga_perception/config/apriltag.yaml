@@ -11,3 +11,9 @@
       refine: true
       sharpening: 0.25
     pose_estimation_method: "pnp"
+    # Todas las salidas llevan el tag 0. Con nombre propio el frame de TF es exit_tag
+    # (el que busca frontier_explorer, parametro exit_tag_frame) y no el de por defecto
+    tag:
+      ids: [0]
+      frames: [exit_tag]
+      sizes: [0.2]

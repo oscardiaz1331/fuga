@@ -105,6 +105,16 @@ def generate_launch_description():
                                             'maps']),
         description='Carpeta donde el juez guarda el mapa SLAM al terminar '
                     '(con slam:=true) y su IoU frente a maze.pgm')
+    declare_apriltag = DeclareLaunchArgument(
+        'apriltag', default_value='true',
+        description='false para no lanzar la deteccion de AprilTags de las '
+                    'salidas (necesita ros-jazzy-apriltag-ros)')
+    declare_detector = DeclareLaunchArgument(
+        'detector', default_value='apriltag_ros',
+        choices=['apriltag_ros', 'opencv'],
+        description='Detector de AprilTags con apriltag:=true: apriltag_ros u '
+                    'opencv (AprilTagFinder de fuga_perception). Solo se lanza '
+                    'uno, los dos publican la TF exit_tag')
     agent = LaunchConfiguration('agent')
 
     # 1) Mundo: genera el laberinto y abre Gazebo con el
@@ -138,6 +148,15 @@ def generate_launch_description():
             on_exit=[include('fuga_nav', 'nav2.launch.py', {})]),
         condition=IfCondition(LaunchConfiguration('nav2')))
 
+    # 3c) Deteccion de AprilTags, tambien cuando el robot ya existe: antes no
+    # hay imagen de la camara. Publica /detections y la TF camara -> tag
+    apriltag = RegisterEventHandler(
+        OnProcessExit(
+            target_action=is_create,
+            on_exit=[include('fuga_perception', 'apriltag.launch.py',
+                             {'detector': LaunchConfiguration('detector')})]),
+        condition=IfCondition(LaunchConfiguration('apriltag')))
+
     # 4) Agente y juez, juntos y tambien cuando el robot ya existe. Juntos para
     # que el start_timeout del juez no corra mientras el agente aun no esta.
     # El nombre del agente va a los dos: al agente para elegir cual crear y al
@@ -147,7 +166,9 @@ def generate_launch_description():
         arguments=[agent],
         # use_sim_time: el agente usa now() (exit_timeout) y frontier_explorer
         # un timer con el reloj del nodo
-        parameters=[{'use_sim_time': True}],
+        # require_exit_tag: sin detector, frontier_explorer sale sin esperar al tag
+        parameters=[{'use_sim_time': True,
+                     'require_exit_tag': LaunchConfiguration('apriltag')}],
         output='screen')
     judge = Node(
         package='fuga_eval', executable='judge_node',
@@ -187,7 +208,7 @@ def generate_launch_description():
                 'Ya hay un Gazebo corriendo, de un bringup anterior que no se '
                 "cerro bien. Verlo: pgrep -fa 'gz sim'. Cerrarlo: "
                 "pkill -f '%s'" % GZ_PATTERN)
-        return [maze, spawn, slam, nav2, run, stop_all, cleanup]
+        return [maze, spawn, slam, nav2, apriltag, run, stop_all, cleanup]
 
     return LaunchDescription([
         *declare_args,
@@ -196,5 +217,7 @@ def generate_launch_description():
         declare_agent,
         declare_results,
         declare_maps,
+        declare_apriltag,
+        declare_detector,
         OpaqueFunction(function=start),
     ])
