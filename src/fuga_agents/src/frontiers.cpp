@@ -19,8 +19,9 @@ bool is_occupied(int8_t value)
   return value != kFree && value != kUnknown;
 }
 
-bool is_frontier_cell(int x, int y, int width, int height,
-                      std::span<const int8_t> grid)
+bool is_frontier_cell(
+  int x, int y, int width, int height,
+  std::span<const int8_t> grid)
 {
   const int index = y * width + x;
   if (grid[index] != kFree) {
@@ -35,15 +36,16 @@ bool is_frontier_cell(int x, int y, int width, int height,
 // true si no hay ninguna celda ocupada (cualquier valor que no sea libre ni
 // desconocido) a clearance celdas o menos de (x, y), en distancia euclidea. Lo desconocido no cuenta: junto a una frontera
 // siempre lo hay.
-bool has_clearance(int x, int y, int width, int height,
-                   std::span<const int8_t> grid, int clearance)
+bool has_clearance(
+  int x, int y, int width, int height,
+  std::span<const int8_t> grid, int clearance)
 {
   for (int dy = -clearance; dy <= clearance; ++dy) {
     for (int dx = -clearance; dx <= clearance; ++dx) {
       const int nx = x + dx;
       const int ny = y + dy;
       if (nx < 0 || nx >= width || ny < 0 || ny >= height ||
-          dx * dx + dy * dy > clearance * clearance)
+        dx * dx + dy * dy > clearance * clearance)
       {
         continue;
       }
@@ -59,8 +61,9 @@ bool has_clearance(int x, int y, int width, int height,
 // una celda del grupo, y no el centroide, para que siempre sea libre (el centroide
 // de una frontera curva puede caer en una pared). Devuelve false si ninguna celda
 // tiene holgura.
-bool set_target(Frontier & frontier, int width, int height,
-                std::span<const int8_t> grid, int clearance)
+bool set_target(
+  Frontier & frontier, int width, int height,
+  std::span<const int8_t> grid, int clearance)
 {
   double cx = 0.0;
   double cy = 0.0;
@@ -88,9 +91,10 @@ bool set_target(Frontier & frontier, int width, int height,
 }
 } // namespace
 
-std::vector<Frontier> find_frontiers(int width, int height,
-                                     std::span<const int8_t> grid,
-                                     int min_size, int clearance)
+std::vector<Frontier> find_frontiers(
+  int width, int height,
+  std::span<const int8_t> grid,
+  int min_size, int clearance)
 {
   std::vector<Frontier> frontiers;
   std::vector<bool> visited(grid.size(), false);
@@ -120,13 +124,13 @@ std::vector<Frontier> find_frontiers(int width, int height,
             const int nx = cx + dx;
             const int ny = cy + dy;
             if ((dx == 0 && dy == 0) || nx < 0 || nx >= width || ny < 0 ||
-                ny >= height)
+              ny >= height)
             {
               continue;
             }
             const int neighbor = ny * width + nx;
             if (!visited[neighbor] &&
-                is_frontier_cell(nx, ny, width, height, grid))
+              is_frontier_cell(nx, ny, width, height, grid))
             {
               visited[neighbor] = true;
               queue.push(neighbor);
@@ -136,7 +140,7 @@ std::vector<Frontier> find_frontiers(int width, int height,
       }
 
       if (static_cast<int>(frontier.cells.size()) >= min_size &&
-          set_target(frontier, width, height, grid, clearance))
+        set_target(frontier, width, height, grid, clearance))
       {
         frontiers.push_back(std::move(frontier));
       }
@@ -145,8 +149,9 @@ std::vector<Frontier> find_frontiers(int width, int height,
   return frontiers;
 }
 
-bool has_frontier_near(int width, int height, std::span<const int8_t> grid,
-                       int cx, int cy, int radius)
+bool has_frontier_near(
+  int width, int height, std::span<const int8_t> grid,
+  int cx, int cy, int radius)
 {
   if (cx < 0 || cx >= width || cy < 0 || cy >= height) {
     return false;
@@ -165,8 +170,9 @@ bool has_frontier_near(int width, int height, std::span<const int8_t> grid,
   return false;
 }
 
-std::vector<int> path_distances(int width, int height, std::span<const int8_t> grid,
-                                int start_x, int start_y)
+std::vector<int> path_distances(
+  int width, int height, std::span<const int8_t> grid,
+  int start_x, int start_y)
 {
   std::vector<int> distances(grid.size(), -1);
   if (start_x < 0 || start_x >= width || start_y < 0 || start_y >= height) {
@@ -201,10 +207,11 @@ std::vector<int> path_distances(int width, int height, std::span<const int8_t> g
   return distances;
 }
 
-std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
-                                        std::span<const int> distances, int width,
-                                        double distance_weight,
-                                        double size_weight)
+std::optional<Frontier> choose_frontier(
+  const std::vector<Frontier> & frontiers,
+  std::span<const int> distances, int width,
+  double distance_weight,
+  double size_weight)
 {
   std::optional<Frontier> best;
   double best_cost = std::numeric_limits<double>::max();
@@ -214,7 +221,7 @@ std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
       continue;  // sin camino desde el robot
     }
     const double cost = distance_weight * distance -
-                        size_weight * static_cast<double>(frontier.cells.size());
+      size_weight * static_cast<double>(frontier.cells.size());
     if (cost < best_cost) {
       best_cost = cost;
       best = frontier;
@@ -223,8 +230,9 @@ std::optional<Frontier> choose_frontier(const std::vector<Frontier> & frontiers,
   return best;
 }
 
-std::vector<ExitCandidate> find_exits(int width, int height, std::span<const int8_t> grid,
-                                      int min_size)
+std::vector<ExitCandidate> find_exits(
+  int width, int height, std::span<const int8_t> grid,
+  int min_size)
 {
   // Caja de las celdas ocupadas: su borde es el muro exterior
   int x_min = width, x_max = -1, y_min = height, y_max = -1;
@@ -243,7 +251,7 @@ std::vector<ExitCandidate> find_exits(int width, int height, std::span<const int
   }
   const auto free_outside = [&](int x, int y) {
       return grid[y * width + x] == kFree &&
-             (x < x_min || x > x_max || y < y_min || y > y_max);
+             (x<x_min || x> x_max || y<y_min || y> y_max);
     };
 
   std::vector<ExitCandidate> exits;
@@ -257,7 +265,8 @@ std::vector<ExitCandidate> find_exits(int width, int height, std::span<const int
 
       // Celdas del grupo pegadas a cada lado de la caja: suma de la coordenada a lo
       // largo del lado (para la media) y cuantas son
-      struct Side {
+      struct Side
+      {
         int out_dx, out_dy;
         long sum = 0;
         int count = 0;

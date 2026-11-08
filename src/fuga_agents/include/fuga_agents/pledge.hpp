@@ -34,7 +34,7 @@ private:
   float last_yaw_ = 0.0f;
   bool has_yaw_ = false;
 
-  static constexpr float kEpsilon = 5.0f * std::numbers::pi_v<float> / 180.0f;
+  static constexpr float kEpsilon = 5.0f * std::numbers::pi_v<float>/ 180.0f;
   static constexpr float kK = 2.0f;
 
   enum class Mode
@@ -44,6 +44,6 @@ private:
   };
   Mode mode_ = Mode::kStraight;
   bool armed_ = false;  // ya se ha alejado de la pared al menos una vez
-  static constexpr float kArm = 80.0f * std::numbers::pi_v<float> / 180.0f;
+  static constexpr float kArm = 80.0f * std::numbers::pi_v<float>/ 180.0f;
 };
 }  // namespace fuga_agents

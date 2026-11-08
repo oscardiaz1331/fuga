@@ -16,7 +16,7 @@ bool NavigateToPoseCpp::cancel_goal() const
     return false;
   }
   action_client_->async_cancel_goal(current_goal_handle_, [this](const auto &) {
-    RCLCPP_INFO(node_.get_logger(), "Cancelación solicitada");
+      RCLCPP_INFO(node_.get_logger(), "Cancelación solicitada");
   });
   return true;
 }
@@ -42,16 +42,16 @@ NavigateToPoseCpp::ResultFuture NavigateToPoseCpp::send_goal(
 
   rclcpp_action::Client<NavigateToPose>::SendGoalOptions options{};
   options.goal_response_callback = [this, promise](const GoalHandle::SharedPtr & goal_handle) {
-    goal_response_callback(goal_handle, promise);
-  };
+      goal_response_callback(goal_handle, promise);
+    };
   options.feedback_callback = [this, promise](
-                                const GoalHandle::SharedPtr & goal_handle,
-                                const std::shared_ptr<const NavigateToPose::Feedback> & feedback) {
-    feedback_callback(goal_handle, feedback);
-  };
+    const GoalHandle::SharedPtr & goal_handle,
+    const std::shared_ptr<const NavigateToPose::Feedback> & feedback) {
+      feedback_callback(goal_handle, feedback);
+    };
   options.result_callback = [this, promise](const GoalHandle::WrappedResult & result) {
-    result_callback(result, promise);
-  };
+      result_callback(result, promise);
+    };
 
   action_client_->async_send_goal(goal, options);
   return future;
@@ -84,7 +84,7 @@ void NavigateToPoseCpp::feedback_callback(
     cancel_requested_ = true;
     // En C++ el goal handle no tiene cancel(); se cancela a través del cliente.
     action_client_->async_cancel_goal(goal_handle, [this](const auto &) {
-      RCLCPP_INFO(node_.get_logger(), "Cancelación solicitada");
+        RCLCPP_INFO(node_.get_logger(), "Cancelación solicitada");
     });
   }
 }

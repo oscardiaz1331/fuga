@@ -50,7 +50,8 @@ private:
     int leave_attempts = 0;
   };
 
-  enum class Mode {
+  enum class Mode
+  {
     kExplore,       // de frontera en frontera
     kApproachExit,  // Nav2 lleva el robot delante de la salida
     kFaceExit,      // girando hacia el hueco y esperando a ver el tag

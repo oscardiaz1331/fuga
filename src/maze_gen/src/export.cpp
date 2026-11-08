@@ -119,21 +119,21 @@ std::vector<maze_gen::MazeExporter::Wall> maze_gen::MazeExporter::extract_walls(
 {
   const int W = maze.width(), Ht = maze.height();
   const auto horizontal = [&](
-                            int x,
-                            int y) {  // muro sobre la linea y, entre x y x+1
-    return y < Ht ? maze.has_wall(x, y, maze_gen::Dir::N)
-                  : maze.has_wall(x, Ht - 1, maze_gen::Dir::S);
-  };
+    int x,
+    int y) {                          // muro sobre la linea y, entre x y x+1
+      return y < Ht ? maze.has_wall(x, y, maze_gen::Dir::N) :
+             maze.has_wall(x, Ht - 1, maze_gen::Dir::S);
+    };
   const auto vertical = [&](
-                          int x,
-                          int y) {  // muro sobre la linea x, entre y e y+1
-    return x < W ? maze.has_wall(x, y, maze_gen::Dir::W)
-                 : maze.has_wall(W - 1, y, maze_gen::Dir::E);
-  };
+    int x,
+    int y) {                        // muro sobre la linea x, entre y e y+1
+      return x < W ? maze.has_wall(x, y, maze_gen::Dir::W) :
+             maze.has_wall(W - 1, y, maze_gen::Dir::E);
+    };
 
   std::vector<Wall> walls;
   for (int y = 0; y <= Ht; ++y) {
-    for (int x = 0; x < W;) {
+    for (int x = 0; x < W; ) {
       if (!horizontal(x, y)) {
         ++x;
         continue;
@@ -148,7 +148,7 @@ std::vector<maze_gen::MazeExporter::Wall> maze_gen::MazeExporter::extract_walls(
     }
   }
   for (int x = 0; x <= W; ++x) {
-    for (int y = 0; y < Ht;) {
+    for (int y = 0; y < Ht; ) {
       if (!vertical(x, y)) {
         ++y;
         continue;
@@ -173,23 +173,23 @@ void maze_gen::MazeExporter::write_sdf(
   // velocidad maxima la pone maze.launch.py con -z (pasos por segundo real)
   os << "<physics name=\"default\" type=\"ignored\"><max_step_size>" << step_size_
      << "</max_step_size><real_time_factor>1</real_time_factor>"
-        "</physics>\n";
+    "</physics>\n";
   os << "<plugin filename=\"gz-sim-physics-system\" "
-        "name=\"gz::sim::systems::Physics\"/>\n"
-        "<plugin filename=\"gz-sim-user-commands-system\" "
-        "name=\"gz::sim::systems::UserCommands\"/>\n"
-        "<plugin filename=\"gz-sim-scene-broadcaster-system\" "
-        "name=\"gz::sim::systems::SceneBroadcaster\"/>\n"
+    "name=\"gz::sim::systems::Physics\"/>\n"
+    "<plugin filename=\"gz-sim-user-commands-system\" "
+    "name=\"gz::sim::systems::UserCommands\"/>\n"
+    "<plugin filename=\"gz-sim-scene-broadcaster-system\" "
+    "name=\"gz::sim::systems::SceneBroadcaster\"/>\n"
         // Sensores del robot: Sensors genera los que necesitan render (lidar,
         // camaras) y Imu los de IMU; sin ellos los sensores no publican nada
-        "<plugin filename=\"gz-sim-sensors-system\" "
-        "name=\"gz::sim::systems::Sensors\">"
-        "<render_engine>ogre2</render_engine></plugin>\n"
-        "<plugin filename=\"gz-sim-imu-system\" "
-        "name=\"gz::sim::systems::Imu\"/>\n"
-        "<light type=\"directional\" name=\"sun\"><pose>0 0 10 0 0 0</pose>"
-        "<direction>-0.5 0.1 -0.9</direction><diffuse>1 1 1 "
-        "1</diffuse></light>\n";
+    "<plugin filename=\"gz-sim-sensors-system\" "
+    "name=\"gz::sim::systems::Sensors\">"
+    "<render_engine>ogre2</render_engine></plugin>\n"
+    "<plugin filename=\"gz-sim-imu-system\" "
+    "name=\"gz::sim::systems::Imu\"/>\n"
+    "<light type=\"directional\" name=\"sun\"><pose>0 0 10 0 0 0</pose>"
+    "<direction>-0.5 0.1 -0.9</direction><diffuse>1 1 1 "
+    "1</diffuse></light>\n";
 
   // Suelo: sin el, todo lo que no es static (el robot) cae al vacio. La
   // colision de un plane es infinita; size solo da el tamano visual, que cubre
@@ -202,12 +202,12 @@ void maze_gen::MazeExporter::write_sdf(
     os << "<" << kind << " name=\"ground_" << kind << "\"><geometry><plane>"
        << "<normal>0 0 1</normal><size>" << gx + 2 << ' ' << gy + 2 << "</size></plane></geometry>"
        << (kind[0] == 'v' ? "<material><ambient>0.8 0.8 0.8 1</ambient>"
-                            "<diffuse>0.8 0.8 0.8 1</diffuse></material>"
-                          : "")
+    "<diffuse>0.8 0.8 0.8 1</diffuse></material>" :
+    "")
        << "</" << kind << ">";
   }
   os << "</link></model>\n"
-        "<model name=\"maze\"><static>true</static><link name=\"walls\">\n";
+    "<model name=\"maze\"><static>true</static><link name=\"walls\">\n";
 
   int i = 0;
   for (const auto & w : walls) {
@@ -260,17 +260,17 @@ void maze_gen::MazeExporter::write_pgm(
   const int thickness = std::max(1, static_cast<int>(std::lround(T * px)));
   // Eje del largo: de punta a punta, recortado a la imagen
   const auto along = [&](double center, double len, int n) {
-    return std::pair{
+      return std::pair{
       std::max(0, static_cast<int>(std::lround((center - len / 2) * px))),
       std::min(n, static_cast<int>(std::lround((center + len / 2) * px)))};
-  };
+    };
   // Eje del grosor: siempre al menos 1 px, y los muros del borde no se salen de
   // la imagen
   const auto across = [&](double center, int n) {
-    const int lo =
-      std::clamp(static_cast<int>(std::lround(center * px - thickness / 2.0)), 0, n - thickness);
-    return std::pair{lo, lo + thickness};
-  };
+      const int lo =
+        std::clamp(static_cast<int>(std::lround(center * px - thickness / 2.0)), 0, n - thickness);
+      return std::pair{lo, lo + thickness};
+    };
 
   for (const auto & w : walls) {
     const bool vertical = w.yaw != 0.0;
@@ -304,24 +304,24 @@ void maze_gen::MazeExporter::write_map_yaml(std::ostream & os, const std::string
 void maze_gen::MazeExporter::write_meta(std::ostream & os) const
 {
   const auto point = [](Point p) {
-    std::ostringstream s;
-    s.imbue(std::locale::classic());
-    s << '[' << p.x << ", " << p.y << ']';
-    return s.str();
-  };
+      std::ostringstream s;
+      s.imbue(std::locale::classic());
+      s << '[' << p.x << ", " << p.y << ']';
+      return s.str();
+    };
   const auto side = [](maze_gen::Dir d) {
-    switch (d) {
-      case maze_gen::Dir::N:
-        return 'N';
-      case maze_gen::Dir::E:
-        return 'E';
-      case maze_gen::Dir::S:
-        return 'S';
-      case maze_gen::Dir::W:
-        return 'W';
-    }
-    return '?';
-  };
+      switch (d) {
+        case maze_gen::Dir::N:
+          return 'N';
+        case maze_gen::Dir::E:
+          return 'E';
+        case maze_gen::Dir::S:
+          return 'S';
+        case maze_gen::Dir::W:
+          return 'W';
+      }
+      return '?';
+    };
 
   // Solo tienen sentido si el laberinto se ha generado aqui
   if (options_.seed) {
@@ -422,17 +422,17 @@ void maze_gen::MazeExporterNode::export_maze()
 
   std::ofstream sdf, pgm, yaml, meta;
   const auto open = [&](std::ofstream & f, const std::string & path, auto mode) -> std::ostream * {
-    if (path.empty()) {
-      return nullptr;
-    }
-    std::filesystem::create_directories(std::filesystem::path(path).parent_path());
-    f.open(path, mode);
-    if (!f) {
-      RCLCPP_ERROR(get_logger(), "No se puede escribir en %s", path.c_str());
-      return nullptr;
-    }
-    return &f;
-  };
+      if (path.empty()) {
+        return nullptr;
+      }
+      std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+      f.open(path, mode);
+      if (!f) {
+        RCLCPP_ERROR(get_logger(), "No se puede escribir en %s", path.c_str());
+        return nullptr;
+      }
+      return &f;
+    };
 
   maze_gen::MazeExporter::Outputs out;
   out.sdf = open(sdf, sdf_path, std::ios::out);

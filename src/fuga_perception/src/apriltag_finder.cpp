@@ -30,7 +30,7 @@ AprilTagFinder::AprilTagFinder()
       for (const auto & corner : corners) {
         cv::Mat rvec, tvec;
         const bool succeed =
-          cv::solvePnP(tag_corners, corner, K, D, rvec, tvec, false, cv::SOLVEPNP_IPPE_SQUARE);
+        cv::solvePnP(tag_corners, corner, K, D, rvec, tvec, false, cv::SOLVEPNP_IPPE_SQUARE);
         if (succeed) {
           RCLCPP_INFO(
             this->get_logger(), "Tag detected: rvec = [%f, %f, %f], tvec = [%f, %f, %f]",
@@ -47,7 +47,7 @@ AprilTagFinder::AprilTagFinder()
           const double angle = r.length();
           // Con ángulo 0 no hay eje: rotación identidad
           const tf2::Quaternion q =
-            angle < 1e-9 ? tf2::Quaternion::getIdentity() : tf2::Quaternion(r / angle, angle);
+          angle < 1e-9 ? tf2::Quaternion::getIdentity() : tf2::Quaternion(r / angle, angle);
           transform_msg.transform.rotation.x = q.x();
           transform_msg.transform.rotation.y = q.y();
           transform_msg.transform.rotation.z = q.z();

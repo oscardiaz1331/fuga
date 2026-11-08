@@ -42,7 +42,7 @@ FrontierExplorer::FrontierExplorer()
   exit_tag_frame_ = declare_parameter("exit_tag_frame", std::string("exit_tag"));
 
   subscription_ = this->create_subscription<nav_msgs::msg::OccupancyGrid>(
-    "map", 10, [this](const nav_msgs::msg::OccupancyGrid::SharedPtr msg) { map_callback(msg); });
+    "map", 10, [this](const nav_msgs::msg::OccupancyGrid::SharedPtr msg) {map_callback(msg);});
   cmd_vel_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
   // create_timer usa el reloj del nodo (no create_wall_timer): con use_sim_time son
   // 200 ms simulados, así decide al mismo ritmo aunque la simulación vaya acelerada.
@@ -51,7 +51,7 @@ FrontierExplorer::FrontierExplorer()
   // antes de recibir el siguiente. Cada tick es barato mientras navega (is_still_frontier
   // y find_exits); find_frontiers y el BFS solo se ejecutan al elegir.
   using namespace std::chrono_literals;
-  timer_ = this->create_timer(200ms, [this]() { step(); });
+  timer_ = this->create_timer(200ms, [this]() {step();});
 }
 
 void FrontierExplorer::on_exit_start()
@@ -69,7 +69,7 @@ void FrontierExplorer::map_callback(const nav_msgs::msg::OccupancyGrid::SharedPt
 void FrontierExplorer::do_step()
 {
   // El timer puede saltar antes de que SLAM publique el primer mapa
-  if (!last_map_) return;
+  if (!last_map_) {return;}
   switch (mode_) {
     case Mode::kExplore:
       explore();
@@ -93,7 +93,7 @@ void FrontierExplorer::explore()
   using namespace std::chrono_literals;
   // Salir tiene prioridad sobre seguir explorando. El goal de la frontera actual lo
   // sustituye el de la salida, sin frenar
-  if (search_exits_ && start_exit()) return;
+  if (search_exits_ && start_exit()) {return;}
 
   if (current_goal_result_.valid()) {
     // Goal en curso: seguir, salvo que su frontera haya desaparecido del mapa
@@ -129,7 +129,7 @@ void FrontierExplorer::explore()
 FrontierExplorer::GoalChoice FrontierExplorer::send_next_goal()
 {
   const std::optional<Pose2D> robot = robot_pose();
-  if (!robot) return GoalChoice::kNoPose;
+  if (!robot) {return GoalChoice::kNoPose;}
 
   // Encontrar fronteras y elegir una
   const auto & info = last_map_->info;
@@ -201,7 +201,7 @@ FrontierExplorer::GoalChoice FrontierExplorer::send_next_goal()
 bool FrontierExplorer::start_exit()
 {
   const std::optional<Pose2D> robot = robot_pose();
-  if (!robot) return false;
+  if (!robot) {return false;}
 
   const auto & info = last_map_->info;
   std::optional<Exit> best;
@@ -212,14 +212,14 @@ bool FrontierExplorer::start_exit()
     const Point door{
       cell_to_meters(info.origin.position.x, c.door_x, info.resolution),
       cell_to_meters(info.origin.position.y, c.door_y, info.resolution)};
-    if (near_any(rejected_exits_, door.x, door.y, kFailedRadius)) continue;
+    if (near_any(rejected_exits_, door.x, door.y, kFailedRadius)) {continue;}
     const double distance = std::hypot(door.x - robot->x, door.y - robot->y);
     if (!best || distance < best_distance) {
       best = Exit{door, {static_cast<double>(c.out_dx), static_cast<double>(c.out_dy)}};
       best_distance = distance;
     }
   }
-  if (!best) return false;
+  if (!best) {return false;}
 
   // El goal de frontera que hubiera en curso lo sustituye el nuevo; su future se descarta
   exit_ = best;
@@ -251,7 +251,7 @@ void FrontierExplorer::approach_exit()
     send_leave_goal();
     return;
   }
-  if (current_goal_result_.wait_for(0s) != std::future_status::ready) return;
+  if (current_goal_result_.wait_for(0s) != std::future_status::ready) {return;}
   const rclcpp_action::ResultCode code = current_goal_result_.get();
   current_goal_result_ = {};
   if (code != rclcpp_action::ResultCode::SUCCEEDED) {
@@ -276,7 +276,7 @@ void FrontierExplorer::face_exit()
     return;
   }
   const std::optional<Pose2D> robot = robot_pose();
-  if (!robot) return;
+  if (!robot) {return;}
   // Hacia el centro del hueco, no solo hacia fuera: Nav2 deja el robot a hasta
   // xy_goal_tolerance del objetivo, también de lado, y así el tag queda centrado
   const double target = std::atan2(exit_->door.y - robot->y, exit_->door.x - robot->x);
@@ -292,7 +292,7 @@ void FrontierExplorer::face_exit()
 void FrontierExplorer::leave()
 {
   using namespace std::chrono_literals;
-  if (current_goal_result_.wait_for(0s) != std::future_status::ready) return;
+  if (current_goal_result_.wait_for(0s) != std::future_status::ready) {return;}
   const rclcpp_action::ResultCode code = current_goal_result_.get();
   current_goal_result_ = {};
   if (code == rclcpp_action::ResultCode::SUCCEEDED) {
@@ -342,7 +342,7 @@ bool FrontierExplorer::tag_seen_near(const Point & door) const
     return false;  // aún no se ha visto nunca
   }
   const rclcpp::Time stamp(tf.header.stamp, get_clock()->get_clock_type());
-  if ((now() - stamp).seconds() > kTagMaxAge) return false;
+  if ((now() - stamp).seconds() > kTagMaxAge) {return false;}
   return std::hypot(tf.transform.translation.x - door.x, tf.transform.translation.y - door.y) <
          kTagDoorRadius;
 }

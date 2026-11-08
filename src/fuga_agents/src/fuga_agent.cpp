@@ -27,7 +27,7 @@ std::optional<tf2::Transform> FugaAgent::lookup(const std::string & frame, doubl
     return std::nullopt;  // aún no se ha visto nunca
   }
   const rclcpp::Time stamp(tf.header.stamp, get_clock()->get_clock_type());
-  if ((now() - stamp).seconds() > max_age) return std::nullopt;  // TF demasiado antiguo
+  if ((now() - stamp).seconds() > max_age) {return std::nullopt;} // TF demasiado antiguo
   const auto & t = tf.transform.translation;
   const auto & q = tf.transform.rotation;
   return tf2::Transform({q.x, q.y, q.z, q.w}, {t.x, t.y, t.z});
@@ -44,7 +44,7 @@ void FugaAgent::step()
 {
   if (!is_going_to_exit_) {
     const auto tag = check_exit_tag_transform();
-    if (tag) is_going_to_exit_ = start_exit(*tag);
+    if (tag) {is_going_to_exit_ = start_exit(*tag);}
     if (!is_going_to_exit_) {
       do_step();
       return;
@@ -58,24 +58,24 @@ void FugaAgent::step()
 bool FugaAgent::start_exit(const tf2::Transform & tag)
 {
   const auto robot = lookup("base_link", 1.0);
-  if (!robot) return false;
+  if (!robot) {return false;}
   const tf2::Vector3 door(tag.getOrigin().x(), tag.getOrigin().y(), 0.0);
   const tf2::Vector3 to_door =
     door - tf2::Vector3(robot->getOrigin().x(), robot->getOrigin().y(), 0.0);
-  if (to_door.length() > kMaxTagDistance) return false;  // aún lejos: sigue con do_step
+  if (to_door.length() > kMaxTagDistance) {return false;} // aún lejos: sigue con do_step
 
   // Columna 2 de la rotación = eje z del tag en odom, perpendicular al panel.
   // Su sentido cambia según el detector (y el panel se ve por las dos caras), así
   // que se elige el que se aleja del robot: hacia fuera del laberinto
   tf2::Vector3 out = tag.getBasis().getColumn(2);
   out.setZ(0.0);
-  if (out.length() < 1e-3) return false;
+  if (out.length() < 1e-3) {return false;}
   out.normalize();
-  if (out.dot(to_door) < 0.0) out = -out;
+  if (out.dot(to_door) < 0.0) {out = -out;}
 
   exit_waypoints_ = {door - out * kExitApproach, door + out * kExitLeave};
   // Si ya está entre el punto de entrada y el hueco, no da la vuelta para ir a él
-  if (out.dot(to_door) < kExitApproach) exit_waypoints_.erase(exit_waypoints_.begin());
+  if (out.dot(to_door) < kExitApproach) {exit_waypoints_.erase(exit_waypoints_.begin());}
 
   RCLCPP_INFO(get_logger(), "Tag de salida visto en (%.2f, %.2f): salgo", door.x(), door.y());
   on_exit_start();
@@ -84,9 +84,9 @@ bool FugaAgent::start_exit(const tf2::Transform & tag)
 
 void FugaAgent::drive_exit()
 {
-  if (exit_waypoints_.empty()) return;  // ya ha salido
+  if (exit_waypoints_.empty()) {return;} // ya ha salido
   const auto robot = lookup("base_link", 1.0);
-  if (!robot) return;
+  if (!robot) {return;}
   const tf2::Vector3 & goal = exit_waypoints_.front();
   const double dx = goal.x() - robot->getOrigin().x();
   const double dy = goal.y() - robot->getOrigin().y();
@@ -106,7 +106,7 @@ void FugaAgent::drive_exit()
   geometry_msgs::msg::Twist cmd;
   cmd.angular.z = std::clamp(kTurnGain * error, -kMaxTurn, kMaxTurn);
   // Primero gira y luego avanza: así entra recto por el hueco
-  if (std::abs(error) < kHeadingTolerance) cmd.linear.x = std::min(kExitSpeed, dist);
+  if (std::abs(error) < kHeadingTolerance) {cmd.linear.x = std::min(kExitSpeed, dist);}
   cmd_exit_vel_->publish(cmd);
 }
 }  // namespace fuga_agents

@@ -16,7 +16,8 @@ namespace
 {
 // Mapa dibujado en ASCII: '.' libre (0), '#' ocupado (100), '?' desconocido (-1).
 // La primera cadena es la fila y = 0, igual que en OccupancyGrid::data.
-struct Map {
+struct Map
+{
   int width = 0;
   int height = 0;
   std::vector<int8_t> data;
@@ -48,9 +49,10 @@ bool contains(const Frontier & f, int x, int y, int width)
 }
 
 // choose_frontier con las distancias por camino desde el robot en (robot_x, robot_y)
-std::optional<Frontier> choose_from(const Map & map, const std::vector<Frontier> & fs,
-                                    int robot_x, int robot_y,
-                                    double distance_weight = 1.0, double size_weight = 0.1)
+std::optional<Frontier> choose_from(
+  const Map & map, const std::vector<Frontier> & fs,
+  int robot_x, int robot_y,
+  double distance_weight = 1.0, double size_weight = 0.1)
 {
   const auto distances = path_distances(map.width, map.height, map.data, robot_x, robot_y);
   return choose_frontier(fs, distances, map.width, distance_weight, size_weight);

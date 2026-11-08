@@ -19,9 +19,9 @@ fuga_agents::Pledge::Pledge()
       last_yaw_ = yaw;
     });
   auto callback = [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
-    laser_msg_ = msg;
-    step();
-  };
+      laser_msg_ = msg;
+      step();
+    };
   subscription_ = this->create_subscription<sensor_msgs::msg::LaserScan>("scan", 10, callback);
 }
 
